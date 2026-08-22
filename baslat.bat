@@ -1,40 +1,50 @@
 @echo off
+setlocal
+title DHL Konsimento Yonetimi
+cd /d "%~dp0"
+
 echo ==========================================
 echo DHL Waybill Uygulamasi Baslatiliyor...
 echo ==========================================
 
-cd /d "%~dp0"
-
-:: 1. Arka yuz (Django) kurulumu ve baslatilmasi
-echo [1/4] Python Sanal Ortami kontrol ediliyor...
+:: 1. Python sanal ortami
 if not exist "dhl_waybill_project\venv" (
-    echo Sanal ortam bulunamadi, olusturuluyor...
+    echo [1/5] Sanal ortam olusturuluyor...
     python -m venv dhl_waybill_project\venv
+) else (
+    echo [1/5] Sanal ortam mevcut.
 )
 
-echo [2/4] Python gereksinimleri yukleniyor...
 call dhl_waybill_project\venv\Scripts\activate.bat
-pip install -r dhl_waybill_project\requirements.txt
 
-echo [3/4] Node.js modulleri kontrol ediliyor...
-cd dhl-waybill-frontend
-if not exist "node_modules" (
-    echo Node modulleri eksik, yukleniyor (bu biraz surebilir)...
-    call npm install
+echo [2/5] Python gereksinimleri kontrol ediliyor...
+pip install -r dhl_waybill_project\requirements.txt --quiet
+
+:: 2. .env yoksa ornekten olustur (ilk calistirmada kullaniciya sormadan calissin diye)
+if not exist "dhl_waybill_project\.env" (
+    echo [3/5] .env dosyasi olusturuluyor...
+    copy /y "dhl_waybill_project\.env.example" "dhl_waybill_project\.env" >nul
 )
-cd ..
 
-echo [4/4] Sunucular baslatiliyor...
+:: 3. Frontend'i SADECE bir kez, gerekiyorsa derle (dist klasoru yoksa)
+if not exist "dhl-waybill-frontend\dist" (
+    echo [4/5] Arayuz ilk kez derleniyor, bu biraz surebilir...
+    pushd dhl-waybill-frontend
+    if not exist "node_modules" (
+        call npm install
+    )
+    call npm run build
+    popd
+) else (
+    echo [4/5] Arayuz zaten derlenmis.
+)
 
-:: Arka yuzu yeni bir terminalde baslat
-start "DHL Arka Yuz (Django)" cmd /c "cd dhl_waybill_project && call venv\Scripts\activate.bat && python manage.py runserver"
-
-:: On yuzu yeni bir terminalde baslat
-start "DHL On Yuz (React)" cmd /c "cd dhl-waybill-frontend && npm run dev"
-
+:: 4. Tek pencerede: sunucuyu baslat + tarayiciyi otomatik ac
+echo [5/5] Uygulama baslatiliyor, tarayici birazdan acilacak...
+echo (Bu pencereyi kapatirsaniz uygulama durur.)
 echo ==========================================
-echo Islem tamamlandi!
-echo Tarayicinizda localhost adresi acilacaktir.
-echo Iki adet terminal penceresi acildi, bunlari kapatirsaniz uygulama kapanir.
-echo ==========================================
+
+cd dhl_waybill_project
+python run.py
+
 pause
