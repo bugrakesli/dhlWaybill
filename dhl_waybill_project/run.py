@@ -6,7 +6,7 @@ import time
 
 def open_browser():
     time.sleep(2)
-    webbrowser.open('http://127.0.0.0:8000')
+    webbrowser.open('http://127.0.0.1:8000')
 
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -20,7 +20,7 @@ def main():
         ) from exc
     
     # Force the arguments to run the server
-    sys.argv = ['run.py', 'runserver', '127.0.0.0:8000', '--noreload']
+    sys.argv = ['run.py', 'runserver', '127.0.0.1:8000', '--noreload']
     
     # Start browser in a background thread
     threading.Thread(target=open_browser, daemon=True).start()

@@ -68,28 +68,6 @@ def filter_waybills_queryset(request):
 
     return queryset
 
-def _normalize_waybill_number(self, raw_value):
-    """
-    Excel'den gelen konşimento numarasını normalize eder. pandas, tam sayı
-    sütununda boş hücre (NaN) varsa tüm sütunu float'a çevirir -- bu yüzden
-    1234567890 değeri "1234567890.0" olarak okunabilir. Bunu düzeltip
-    tam 10 haneli bir string'e indirger. Kural sağlanmazsa None döner.
-    """
-    if pd.isna(raw_value):
-        return None
-
-    # Float olarak gelmiş olabilir (örn. 1234567890.0) -- tam sayıya çevirip
-    # ondalık kısmı at.
-    if isinstance(raw_value, float):
-        raw_value = int(raw_value)
-
-    value_str = str(raw_value).strip()
-
-    if not re.match(r"^\d{10}$", value_str):
-        return None
-
-    return value_str
-
 # --------------------------------------------------------------------------
 # 1) EXCEL YÜKLEME ENDPOINT'İ
 # --------------------------------------------------------------------------
@@ -133,6 +111,28 @@ class WaybillExcelUploadView(APIView):
 
         if value_str.upper() in self.EMPTY_PLACEHOLDER_VALUES:
             return fallback
+
+        return value_str
+
+    def _normalize_waybill_number(self, raw_value):
+        """
+        Excel'den gelen konşimento numarasını normalize eder. pandas, tam sayı
+        sütununda boş hücre (NaN) varsa tüm sütunu float'a çevirir -- bu yüzden
+        1234567890 değeri "1234567890.0" olarak okunabilir. Bunu düzeltip
+        tam 10 haneli bir string'e indirger. Kural sağlanmazsa None döner.
+        """
+        if pd.isna(raw_value):
+            return None
+
+        # Float olarak gelmiş olabilir (örn. 1234567890.0) -- tam sayıya çevirip
+        # ondalık kısmı at.
+        if isinstance(raw_value, float):
+            raw_value = int(raw_value)
+
+        value_str = str(raw_value).strip()
+
+        if not re.match(r"^\d{10}$", value_str):
+            return None
 
         return value_str
 
