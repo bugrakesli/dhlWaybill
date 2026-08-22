@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+.ENV/
+*.env
+!.env.example
+
+# Django and local data
+*.log
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Python tooling and test output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Frontend dependencies and build output
+dhl-waybill-frontend/node_modules/
+dhl-waybill-frontend/dist/
+dhl-waybill-frontend/.vite/
+
+# Python packaging and application builds
+dist/
+build/
+*.egg-info/
+*.spec.bak
+
+# Environment and local configuration
+*.local
+
+# Editors and operating systems
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
