@@ -26,10 +26,7 @@ else:
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config("DJANGO_SECRET_KEY")
-
-# SECURITY WARNING: don't run with debug turned on in production!
+SECRET_KEY = config("DJANGO_SECRET_KEY", default="91Ktqks5JF-tl6fHaI1pzfjAL20R9gZ3f_PtQn-05ytOxQs0rr4vhFTCy07mXtsuRnM")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
 ALLOWED_HOSTS = []
