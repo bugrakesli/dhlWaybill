@@ -29,7 +29,7 @@ else:
 SECRET_KEY = config("DJANGO_SECRET_KEY", default="91Ktqks5JF-tl6fHaI1pzfjAL20R9gZ3f_PtQn-05ytOxQs0rr4vhFTCy07mXtsuRnM")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 # Application definition
