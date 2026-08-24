@@ -76,7 +76,7 @@ class WaybillExcelUploadView(APIView):
     """
     POST /api/waybills/upload/
 
-    Excel (.xlsx) dosyasını okuyup Waybill kayıtlarını toplu olarak
+    Excel/CSV (.xlsx, .xls, .csv) dosyasını okuyup Waybill kayıtlarını toplu olarak
     günceller (var olan waybill_number) veya oluşturur (yeni kayıt).
 
     Tek gerçekten zorunlu alan: waybill_number.
@@ -142,10 +142,16 @@ class WaybillExcelUploadView(APIView):
         excel_file = upload_serializer.validated_data["file"]
 
         try:
-            df = pd.read_excel(excel_file, engine="openpyxl")
+            file_name = excel_file.name.lower()
+            if file_name.endswith(".csv"):
+                df = pd.read_csv(excel_file)
+            elif file_name.endswith(".xls"):
+                df = pd.read_excel(excel_file, engine="xlrd")
+            else:
+                df = pd.read_excel(excel_file, engine="openpyxl")
         except Exception as e:
             return Response(
-                {"detail": f"Excel dosyası okunamadı: {str(e)}"},
+                {"detail": f"Dosya okunamadı: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

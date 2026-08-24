@@ -140,6 +140,6 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite varsayılan portu
 ]
 
-# --- Büyük Excel dosyası yüklemeleri için limit artırımı ---
-DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024   # 15 MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024   # 15 MB
+# --- Büyük dosya yüklemeleri için limit artırımı (yerel kullanım, 100MB'a kadar) ---
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024   # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024   # 100 MB

@@ -46,13 +46,19 @@ class WaybillExcelUploadSerializer(serializers.Serializer):
 
     file = serializers.FileField()
 
+    # Excel'e ek olarak eski .xls ve .csv dosyaları da kabul edilir --
+    # program yerel çalıştığı için format konusunda esnek davranıyoruz.
+    ALLOWED_EXTENSIONS = (".xlsx", ".xls", ".csv")
+
     def validate_file(self, value):
         # Uzantı kontrolü
-        if not value.name.endswith(".xlsx"):
-            raise serializers.ValidationError("Yalnızca .xlsx dosyaları kabul edilir.")
+        if not value.name.lower().endswith(self.ALLOWED_EXTENSIONS):
+            raise serializers.ValidationError(
+                "Yalnızca .xlsx, .xls veya .csv dosyaları kabul edilir."
+            )
 
-        # Dosya boyutu kontrolü (örnek: max 10 MB)
-        max_size_mb = 10
+        # Dosya boyutu kontrolü (yerel kullanım için üst limit yükseltildi)
+        max_size_mb = 100
         if value.size > max_size_mb * 1024 * 1024:
             raise serializers.ValidationError(
                 f"Dosya boyutu {max_size_mb}MB'ı aşamaz."
