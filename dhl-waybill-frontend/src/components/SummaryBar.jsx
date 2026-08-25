@@ -1,34 +1,50 @@
 /**
- * Filtrelenmiş sonuç kümesinin özetini gösterir: toplam kayıt sayısı ve toplam ağırlık.
- * Yenileme sırasında (sıralama/sayfa değişimi) component'i kaybetmek yerine,
- * mevcut veriyi ekranda tutup hafifçe soluklaştırıyoruz.
+ * Filtrelenmiş sonuç kümesinin özetini gösterir:
+ * toplam kayıt sayısı, toplam parça, toplam euro ve teslim edilen sayısı.
  */
 function SummaryBar({ summary, isLoading }) {
-  // Henüz hiç veri gelmediyse (ilk yükleme) hiçbir şey gösterme
   if (!summary) {
     return null;
   }
 
-  const formattedWeight = summary.total_weight.toLocaleString("tr-TR", {
+  const formattedEuro = (summary.total_euro ?? 0).toLocaleString("tr-TR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+  const formattedPieces = (summary.total_pieces ?? 0).toLocaleString("tr-TR");
 
   return (
     <div className={`summary-bar ${isLoading ? "summary-refreshing" : ""}`}>
       <div className="summary-item">
         <span className="summary-value">{summary.total_count}</span>
-        <span className="summary-label">Konşimento</span>
+        <span className="summary-label">Toplam Konşimento</span>
       </div>
 
       <div className="summary-divider" />
 
       <div className="summary-item">
-        <span className="summary-value">{formattedWeight} kg</span>
-        <span className="summary-label">Toplam Ağırlık</span>
+        <span className="summary-value">{formattedPieces}</span>
+        <span className="summary-label">Toplam Parça</span>
+      </div>
+
+      <div className="summary-divider" />
+
+      <div className="summary-item">
+        <span className="summary-value">{formattedEuro} €</span>
+        <span className="summary-label">Toplam Euro</span>
+      </div>
+
+      <div className="summary-divider" />
+
+      <div className="summary-item">
+        <span className="summary-value">
+          {summary.delivered_count} <small style={{ fontSize: "0.9rem", color: "#888" }}>/ {summary.total_count}</small>
+        </span>
+        <span className="summary-label">Teslim Edildi</span>
       </div>
     </div>
   );
 }
 
-export default SummaryBar;
+export default SummaryBar;

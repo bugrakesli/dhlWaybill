@@ -1,68 +1,96 @@
 from django.db import models
-from django.core.validators import MinValueValidator, RegexValidator
+from django.core.validators import MinValueValidator
 
 
 class Waybill(models.Model):
     """
-    Konşimento (Waybill) kayıtlarını temsil eden model.
+    Konşimento (Waybill / AWB) kayıtlarını temsil eden model.
     Excel'den toplu yükleme ile veya API üzerinden tekil olarak oluşturulabilir.
     """
 
-    class StatusChoices(models.TextChoices):
-        PENDING = "PENDING", "Beklemede"
-        IN_TRANSIT = "IN_TRANSIT", "Yolda"
-        DELIVERED = "DELIVERED", "Teslim Edildi"
-        CANCELLED = "CANCELLED", "İptal Edildi"
-
     waybill_number = models.CharField(
-        max_length=10,
+        max_length=50,
         unique=True,
         db_index=True,
-        validators=[
-            RegexValidator(
-                regex=r"^\d{10}$",
-                message="Konşimento numarası tam 10 haneli rakamlardan oluşmalıdır.",
-            )
-        ],
-        verbose_name="Konşimento No",
+        verbose_name="AWB / Konşimento No",
     )
 
-    # Filtreleme bu alan üzerinden yapılacağı için index kritik önemde.
-    # Tarih aralığı sorguları (start_date/end_date) bu index sayesinde
-    # tablo tam taraması (full table scan) yerine index seek kullanır.
     shipment_date = models.DateField(
         db_index=True,
-        verbose_name="Sevkiyat Tarihi",
+        verbose_name="Tarih",
     )
 
-    status = models.CharField(
-        max_length=20,
-        choices=StatusChoices.choices,
-        default=StatusChoices.PENDING,
-        verbose_name="Durum",
+    sender = models.CharField(
+        max_length=255,
+        default="-",
+        verbose_name="Gönderici Firma/Şahıs",
     )
 
-    sender = models.CharField(max_length=255, verbose_name="Gönderici")
-    receiver = models.CharField(max_length=255, verbose_name="Alıcı")
+    destination = models.CharField(
+        max_length=255,
+        default="-",
+        verbose_name="Ülke - Varış Noktası",
+    )
 
-    weight = models.DecimalField(
-    max_digits=10,
-    decimal_places=2,
-    null=True,       # YENİ: veri yoksa NULL olarak saklanabilsin
-    blank=True,      # YENİ: admin panelinde/serializer'da boş bırakılabilsin
-    validators=[MinValueValidator(0)],
-    verbose_name="Ağırlık (kg)",
-)
+    piece_count = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Parça",
+    )
+
+    collected_by = models.CharField(
+        max_length=255,
+        default="-",
+        verbose_name="Toplayan",
+    )
+
+    delivered = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Teslim Edildi",
+    )
+
+    receiver = models.CharField(
+        max_length=255,
+        default="-",
+        verbose_name="Alıcı Firma/Şahıs",
+    )
+
+    euro_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Euro",
+    )
+
+    exchange_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Kur",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def payment_amount(self):
+        """
+        Hesaplanan TL Tutar: Euro * Kur
+        """
+        if self.euro_amount is not None and self.exchange_rate is not None:
+            return round(float(self.euro_amount * self.exchange_rate), 2)
+        return None
+
     class Meta:
-        ordering = ["-shipment_date"]  # Varsayılan sıralama: en yeni sevkiyat üstte
+        ordering = ["-shipment_date", "-id"]
         indexes = [
-            # shipment_date + status birlikte filtrelenirse (ör. "geçen ay teslim edilenler")
-            # composite index performansı daha da artırır.
-            models.Index(fields=["shipment_date", "status"]),
+            models.Index(fields=["shipment_date", "delivered"]),
         ]
         verbose_name = "Konşimento"
         verbose_name_plural = "Konşimentolar"

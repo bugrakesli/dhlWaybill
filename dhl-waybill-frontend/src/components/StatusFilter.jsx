@@ -1,13 +1,13 @@
-import { STATUS_OPTIONS } from "../constants/statusOptions";
+import { DELIVERY_OPTIONS } from "../constants/statusOptions";
 
-function StatusFilter({ selectedStatuses, onToggleStatus }) {
+function StatusFilter({ selectedDelivered, onSelectDelivered }) {
   return (
     <div className="status-filter-container">
-      <span className="status-filter-label">Durum:</span>
+      <span className="status-filter-label">Teslim Durumu:</span>
 
       <div className="status-chip-group">
-        {STATUS_OPTIONS.map((option) => {
-          const isActive = selectedStatuses.includes(option.value);
+        {DELIVERY_OPTIONS.map((option) => {
+          const isActive = selectedDelivered === option.value;
 
           return (
             <button
@@ -17,7 +17,7 @@ function StatusFilter({ selectedStatuses, onToggleStatus }) {
               style={{
                 "--chip-color": option.color,
               }}
-              onClick={() => onToggleStatus(option.value)}
+              onClick={() => onSelectDelivered(option.value)}
             >
               {option.label}
             </button>
@@ -28,4 +28,4 @@ function StatusFilter({ selectedStatuses, onToggleStatus }) {
   );
 }
 
-export default StatusFilter;
+export default StatusFilter;

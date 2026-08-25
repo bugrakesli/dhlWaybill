@@ -475,3 +475,65 @@ th {
   color: #1e1e1e;
   font-weight: 600;
 }
+
+/* --- Teslimat Durumu Badge --- */
+.delivery-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.delivery-badge-yes {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid #2ecc71;
+}
+
+.delivery-badge-no {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+}
+
+/* --- Genişletilmiş Modal Stilleri --- */
+.modal-large {
+  width: 600px;
+  max-width: 95vw;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+@media (max-width: 650px) {
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.computed-preview-box {
+  grid-column: 1 / -1;
+  background: #2a2a2a;
+  border: 1px dashed #3498db;
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.computed-preview-box span {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.computed-preview-box strong {
+  font-size: 1.15rem;
+  color: #2ecc71;
+}

@@ -3,8 +3,7 @@ import apiClient from "../api/axiosConfig";
 
 /**
  * Aktif filtrelere göre TÜM sonuçları (sayfalama olmadan) Excel dosyası
- * olarak indirir. activeFilters, App.jsx'teki filtre state'i ile birebir
- * aynı olmalı -- kullanıcının o an gördüğü filtreyle indirilen dosya tutarlı olsun diye.
+ * olarak indirir.
  */
 function ExportButton({ activeFilters }) {
   const [isExporting, setIsExporting] = useState(false);
@@ -19,13 +18,15 @@ function ExportButton({ activeFilters }) {
         params: {
           start_date: activeFilters.startDate,
           end_date: activeFilters.endDate,
-          status: activeFilters.statuses.length > 0 ? activeFilters.statuses.join(",") : undefined,
+          delivered:
+            activeFilters.delivered && activeFilters.delivered !== "all"
+              ? activeFilters.delivered
+              : undefined,
+          incomplete: activeFilters.incomplete ? "true" : undefined,
         },
-        responseType: "blob", // Dosya indirme için binary veri bekliyoruz, JSON değil
+        responseType: "blob",
       });
 
-      // Backend'in Content-Disposition header'ından dosya adını çıkar
-      // (örn: attachment; filename="konsimentolar_2026-06-01_2026-06-30.xlsx")
       const contentDisposition = response.headers["content-disposition"];
       let filename = "konsimentolar.xlsx";
       if (contentDisposition) {
@@ -33,7 +34,6 @@ function ExportButton({ activeFilters }) {
         if (match) filename = match[1];
       }
 
-      // Blob'u geçici bir link üzerinden tarayıcıya indirt
       const blob = new Blob([response.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -46,7 +46,6 @@ function ExportButton({ activeFilters }) {
       link.click();
       document.body.removeChild(link);
 
-      // Bellek sızıntısını önlemek için geçici URL'i serbest bırak
       window.URL.revokeObjectURL(url);
     } catch (error) {
       setExportError("Dışa aktarma sırasında bir hata oluştu.");
@@ -67,4 +66,4 @@ function ExportButton({ activeFilters }) {
   );
 }
 
-export default ExportButton;
+export default ExportButton;

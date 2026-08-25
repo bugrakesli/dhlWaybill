@@ -17,18 +17,19 @@ function App() {
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("shipment_date");
-  const [sortDirection, setSortDirection] = useState("desc"); // "asc" veya "desc"
+  const [sortDirection, setSortDirection] = useState("desc");
 
   const [{ startDate: defaultStart, endDate: defaultEnd }] = useState(getLastMonthRange);
 
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
-  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [deliveredFilter, setDeliveredFilter] = useState("all");
 
   const [activeFilters, setActiveFilters] = useState({
     startDate: defaultStart,
     endDate: defaultEnd,
-    statuses: [],
+    delivered: "all",
+    incomplete: false,
   });
 
   const [waybills, setWaybills] = useState([]);
@@ -52,7 +53,11 @@ function App() {
   };
 
   const handleToggleIncomplete = () => {
-    setShowIncompleteOnly((prev) => !prev);
+    setShowIncompleteOnly((prev) => {
+      const nextVal = !prev;
+      setActiveFilters((f) => ({ ...f, incomplete: nextVal }));
+      return nextVal;
+    });
     setCurrentPage(1);
   };
 
@@ -72,12 +77,12 @@ function App() {
     try {
       const response = await apiClient.get("waybills/", {
         params: {
-          // Eksik veri filtresi aktifken tarih aralığını GÖNDERME --
-          // yoksa placeholder tarihli (1900-01-01) kayıtlar normal tarih
-          // aralığının dışında kaldığı için hiç görünmezler.
           start_date: showIncompleteOnly ? undefined : activeFilters.startDate,
           end_date: showIncompleteOnly ? undefined : activeFilters.endDate,
-          status: activeFilters.statuses.length > 0 ? activeFilters.statuses.join(",") : undefined,
+          delivered:
+            activeFilters.delivered && activeFilters.delivered !== "all"
+              ? activeFilters.delivered
+              : undefined,
           ordering: sortDirection === "desc" ? `-${sortField}` : sortField,
           search: searchQuery || undefined,
           incomplete: showIncompleteOnly ? "true" : undefined,
@@ -108,15 +113,20 @@ function App() {
 
   const handleApplyFilter = () => {
     setCurrentPage(1);
-    setActiveFilters({ startDate, endDate, statuses: selectedStatuses });
+    setActiveFilters((prev) => ({
+      ...prev,
+      startDate,
+      endDate,
+    }));
   };
 
-  const handleToggleStatus = (statusValue) => {
-    setSelectedStatuses((prev) =>
-      prev.includes(statusValue)
-        ? prev.filter((s) => s !== statusValue)
-        : [...prev, statusValue]
-    );
+  const handleSelectDelivered = (val) => {
+    setDeliveredFilter(val);
+    setCurrentPage(1);
+    setActiveFilters((prev) => ({
+      ...prev,
+      delivered: val,
+    }));
   };
 
   const handleUploadSuccess = () => {
@@ -167,8 +177,8 @@ function App() {
       />
 
       <StatusFilter
-        selectedStatuses={selectedStatuses}
-        onToggleStatus={handleToggleStatus}
+        selectedDelivered={deliveredFilter}
+        onSelectDelivered={handleSelectDelivered}
       />
 
       <div className="summary-and-export">

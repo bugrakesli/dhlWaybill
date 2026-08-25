@@ -1,6 +1,9 @@
 import re
-import pandas as pd
+from decimal import Decimal, InvalidOperation
 from datetime import date
+import pandas as pd
+import openpyxl
+from openpyxl.styles import Font, PatternFill
 from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.http import HttpResponse
@@ -9,17 +12,11 @@ from rest_framework import status, generics, filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-import openpyxl
-from openpyxl.styles import Font, PatternFill
 
 from .models import Waybill
 from .serializers import WaybillSerializer, WaybillExcelUploadSerializer
 from .pagination import WaybillPagination
 
-# Eksik veriyle gelen kayıtlar için kullanılan placeholder değerler.
-# Hem upload (WaybillExcelUploadView) hem filtreleme (filter_waybills_queryset)
-# aynı sabitleri kullanır -- iki yerde ayrı ayrı tanımlanıp zamanla
-# farklılaşmasını önlemek için burada, modül seviyesinde tutuluyor.
 PLACEHOLDER_DATE = date(1900, 1, 1)
 PLACEHOLDER_TEXT = "-"
 
@@ -30,15 +27,14 @@ PLACEHOLDER_TEXT = "-"
 
 def filter_waybills_queryset(request):
     """
-    start_date, end_date, status ve incomplete query parametrelerine göre
-    Waybill queryset'ini filtreler. Hem WaybillListView (sayfalanmış listeleme)
-    hem de WaybillExportView (tam Excel dışa aktarma) tarafından kullanılır.
+    start_date, end_date, delivered ve incomplete query parametrelerine göre
+    Waybill queryset'ini filtreler.
     """
     queryset = Waybill.objects.all()
 
     start_date_param = request.query_params.get("start_date")
     end_date_param = request.query_params.get("end_date")
-    status_param = request.query_params.get("status")
+    delivered_param = request.query_params.get("delivered")
     incomplete_param = request.query_params.get("incomplete")
 
     start_date = parse_date(start_date_param) if start_date_param else None
@@ -49,24 +45,28 @@ def filter_waybills_queryset(request):
     if end_date:
         queryset = queryset.filter(shipment_date__lte=end_date)
 
-    if status_param:
-        status_list = [s.strip().upper() for s in status_param.split(",") if s.strip()]
-        valid_statuses = {choice[0] for choice in Waybill.StatusChoices.choices}
-        status_list = [s for s in status_list if s in valid_statuses]
-        if status_list:
-            queryset = queryset.filter(status__in=status_list)
+    if delivered_param is not None:
+        delivered_str = str(delivered_param).strip().lower()
+        if delivered_str in ["true", "1", "evet", "yes"]:
+            queryset = queryset.filter(delivered=True)
+        elif delivered_str in ["false", "0", "hayir", "hayır", "no"]:
+            queryset = queryset.filter(delivered=False)
 
-    # Eksik veri filtresi -- weight NULL, tarih placeholder, veya
-    # gönderici/alıcı "-" olan kayıtları OR mantığıyla yakalar.
+    # Eksik veri filtresi
     if incomplete_param and incomplete_param.lower() == "true":
         queryset = queryset.filter(
-            Q(weight__isnull=True)
-            | Q(shipment_date=PLACEHOLDER_DATE)
+            Q(shipment_date=PLACEHOLDER_DATE)
             | Q(sender=PLACEHOLDER_TEXT)
             | Q(receiver=PLACEHOLDER_TEXT)
+            | Q(destination=PLACEHOLDER_TEXT)
+            | Q(collected_by=PLACEHOLDER_TEXT)
+            | Q(euro_amount__isnull=True)
+            | Q(exchange_rate__isnull=True)
+            | Q(piece_count__isnull=True)
         )
 
     return queryset
+
 
 # --------------------------------------------------------------------------
 # 1) EXCEL YÜKLEME ENDPOINT'İ
@@ -78,63 +78,169 @@ class WaybillExcelUploadView(APIView):
 
     Excel/CSV (.xlsx, .xls, .csv) dosyasını okuyup Waybill kayıtlarını toplu olarak
     günceller (var olan waybill_number) veya oluşturur (yeni kayıt).
-
-    Tek gerçekten zorunlu alan: waybill_number.
-    shipment_date boşsa PLACEHOLDER_DATE (1900-01-01), weight boşsa/geçersizse
-    None ("VERİ YOK"), sender/receiver boşsa "-" olarak kaydedilir.
     """
     parser_classes = [MultiPartParser, FormParser]
 
-    # Excel dosyasında bulunması ZORUNLU olan tek sütun -- diğerleri
-    # (shipment_date, status, sender, receiver, weight) hiç yoksa bile
-    # dosya kabul edilir, eksik sütunlar otomatik fallback değerleriyle doldurulur.
-    REQUIRED_COLUMNS = {"waybill_number"}
-
-    # Excel'de var olması BEKLENEN ama zorunlu olmayan sütunlar -- dosyada
-    # yoksa, aşağıda otomatik olarak boş (NaN) sütun olarak eklenir, böylece
-    # satır işleme mantığı (row["shipment_date"] gibi erişimler) değişmeden çalışır.
-    OPTIONAL_COLUMNS = {"shipment_date", "status", "sender", "receiver", "weight"}
-
-    # Bu değerler hücrede görülürse "aslında boş" kabul edilir (case-insensitive)
     EMPTY_PLACEHOLDER_VALUES = {"", "NULL", "NAN", "N/A", "NA", "-", "NONE"}
 
-    def _normalize_optional_field(self, raw_value, fallback="-"):
-        """
-        sender/receiver gibi opsiyonel alanlar için: hücre boşsa, NaN ise,
-        veya "NULL"/"-"/"N/A" gibi bir placeholder içeriyorsa, fallback değeri döner.
-        Aksi halde hücrenin temizlenmiş (strip edilmiş) halini döner.
-        """
+    # Türkçe ve İngilizce sütun başlıklarını model alanlarına eşleme
+    COLUMN_ALIASES = {
+        # waybill_number (ZORUNLU)
+        "AWB": "waybill_number",
+        "KONŞİMENTO NO": "waybill_number",
+        "KONSIMENTO NO": "waybill_number",
+        "KONŞİMENTO": "waybill_number",
+        "KONSIMENTO": "waybill_number",
+        "WAYBILL_NUMBER": "waybill_number",
+        "WAYBILL NO": "waybill_number",
+        "WAYBILL": "waybill_number",
+
+        # shipment_date
+        "TARİH": "shipment_date",
+        "TARIH": "shipment_date",
+        "SEVKİYAT TARİHİ": "shipment_date",
+        "SEVKIYAT TARIHI": "shipment_date",
+        "SHIPMENT_DATE": "shipment_date",
+        "DATE": "shipment_date",
+
+        # sender
+        "GÖNDERİCİ FİRMA/ŞAHIS": "sender",
+        "GONDERICI FIRMA/SAHIS": "sender",
+        "GÖNDERİCİ FİRMA / ŞAHIS": "sender",
+        "GONDERICI FIRMA / SAHIS": "sender",
+        "GÖNDERİCİ": "sender",
+        "GONDERICI": "sender",
+        "SENDER": "sender",
+
+        # destination
+        "ÜLKE-VARIŞ NOKTASI": "destination",
+        "ULKE-VARIS NOKTASI": "destination",
+        "ÜLKE - VARIŞ NOKTASI": "destination",
+        "ULKE - VARIS NOKTASI": "destination",
+        "ÜLKE/VARIŞ NOKTASI": "destination",
+        "ULKE/VARIS NOKTASI": "destination",
+        "ÜLKE": "destination",
+        "ULKE": "destination",
+        "VARIŞ NOKTASI": "destination",
+        "VARIS NOKTASI": "destination",
+        "DESTINATION": "destination",
+        "COUNTRY": "destination",
+
+        # piece_count
+        "PARÇA": "piece_count",
+        "PARCA": "piece_count",
+        "PARÇA SAYISI": "piece_count",
+        "PARCA SAYISI": "piece_count",
+        "PIECE": "piece_count",
+        "PIECES": "piece_count",
+        "PIECE_COUNT": "piece_count",
+
+        # collected_by
+        "TOPLAYAN": "collected_by",
+        "TOPLAYAN KURYE": "collected_by",
+        "KURYE": "collected_by",
+        "COLLECTED_BY": "collected_by",
+
+        # delivered
+        "TESLİM EDİLDİ": "delivered",
+        "TESLIM EDILDI": "delivered",
+        "TESLİM": "delivered",
+        "TESLIM": "delivered",
+        "TESLİM DURUMU": "delivered",
+        "TESLIM DURUMU": "delivered",
+        "DELIVERED": "delivered",
+
+        # receiver
+        "ALICI FIRMA/ŞAHIS": "receiver",
+        "ALICI FIRMA/SAHIS": "receiver",
+        "ALICI FİRMA/ŞAHIS": "receiver",
+        "ALICI FİRMA / ŞAHIS": "receiver",
+        "ALICI": "receiver",
+        "RECEIVER": "receiver",
+
+        # euro_amount
+        "EURO": "euro_amount",
+        "EURO TUTARI": "euro_amount",
+        "EURO_AMOUNT": "euro_amount",
+        "TUTAR": "euro_amount",
+
+        # exchange_rate
+        "KUR": "exchange_rate",
+        "DÖVİZ KURU": "exchange_rate",
+        "DOVIZ KURU": "exchange_rate",
+        "EXCHANGE_RATE": "exchange_rate",
+        "RATE": "exchange_rate",
+    }
+
+    def _normalize_header(self, header):
+        """Sütun başlığını temizleyip standart büyük harfe çevirir."""
+        if not header:
+            return ""
+        return str(header).strip().upper()
+
+    def _normalize_text_field(self, raw_value, fallback="-"):
         if pd.isna(raw_value):
             return fallback
-
         value_str = str(raw_value).strip()
-
         if value_str.upper() in self.EMPTY_PLACEHOLDER_VALUES:
             return fallback
-
         return value_str
 
     def _normalize_waybill_number(self, raw_value):
-        """
-        Excel'den gelen konşimento numarasını normalize eder. pandas, tam sayı
-        sütununda boş hücre (NaN) varsa tüm sütunu float'a çevirir -- bu yüzden
-        1234567890 değeri "1234567890.0" olarak okunabilir. Bunu düzeltip
-        tam 10 haneli bir string'e indirger. Kural sağlanmazsa None döner.
-        """
         if pd.isna(raw_value):
             return None
-
-        # Float olarak gelmiş olabilir (örn. 1234567890.0) -- tam sayıya çevirip
-        # ondalık kısmı at.
         if isinstance(raw_value, float):
-            raw_value = int(raw_value)
-
+            try:
+                raw_value = int(raw_value)
+            except (ValueError, OverflowError):
+                pass
         value_str = str(raw_value).strip()
+        return value_str if value_str else None
 
-        if not re.match(r"^\d{10}$", value_str):
+    def _parse_date(self, raw_value):
+        if pd.isna(raw_value):
+            return PLACEHOLDER_DATE
+        try:
+            return pd.to_datetime(raw_value).date()
+        except (ValueError, TypeError):
+            return PLACEHOLDER_DATE
+
+    def _parse_int(self, raw_value):
+        if pd.isna(raw_value):
+            return None
+        try:
+            val_str = str(raw_value).strip().replace(" ", "")
+            val = int(float(val_str))
+            return val if val >= 0 else None
+        except (ValueError, TypeError, OverflowError):
             return None
 
-        return value_str
+    def _parse_decimal(self, raw_value, decimal_places=2):
+        if pd.isna(raw_value):
+            return None
+        try:
+            val_str = str(raw_value).strip()
+            for token in ["€", "$", "TL", "tl", "EUR", "USD", " "]:
+                val_str = val_str.replace(token, "")
+            # Türkçe virgüllü format "12,50" -> "12.50"
+            if "," in val_str and "." in val_str:
+                val_str = val_str.replace(".", "").replace(",", ".")
+            elif "," in val_str:
+                val_str = val_str.replace(",", ".")
+            d = Decimal(val_str)
+            if d < 0:
+                return None
+            return round(d, decimal_places)
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+
+    def _parse_boolean(self, raw_value):
+        if pd.isna(raw_value):
+            return False
+        val_str = str(raw_value).strip().lower()
+        if val_str in {"1", "true", "t", "evet", "e", "yes", "y", "teslim", "teslim edildi", "ok", "+"}:
+            return True
+        return False
 
     def post(self, request, *args, **kwargs):
         upload_serializer = WaybillExcelUploadSerializer(data=request.data)
@@ -161,23 +267,23 @@ class WaybillExcelUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        missing_columns = self.REQUIRED_COLUMNS - set(df.columns)
-        if missing_columns:
+        # Excel sütunlarını model alanlarına eşle
+        field_to_col = {}
+        for col in df.columns:
+            norm_col = self._normalize_header(col)
+            if norm_col in self.COLUMN_ALIASES:
+                target_field = self.COLUMN_ALIASES[norm_col]
+                if target_field not in field_to_col:
+                    field_to_col[target_field] = col
+
+        if "waybill_number" not in field_to_col:
             return Response(
                 {
-                    "detail": "Excel dosyasında eksik sütunlar var.",
-                    "missing_columns": list(missing_columns),
+                    "detail": "Excel dosyasında AWB / Konşimento No sütunu bulunamadı.",
+                    "available_columns": list(df.columns),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # Opsiyonel sütunlardan (shipment_date, status, sender, receiver, weight)
-        # Excel'de hiç bulunmayanları, tamamen boş (NaN) bir sütun olarak DataFrame'e
-        # ekliyoruz. Böylece aşağıdaki satır işleme mantığı (row["shipment_date"] gibi)
-        # sütun var/yok farkını hiç bilmeden, "hücre boş" durumuyla aynı şekilde
-        # çalışır -- ayrı bir kod yolu yazmamıza gerek kalmıyor.
-        for optional_column in self.OPTIONAL_COLUMNS:
-            if optional_column not in df.columns:
-                df[optional_column] = None
 
         to_update = []
         to_create = []
@@ -191,50 +297,77 @@ class WaybillExcelUploadView(APIView):
             excel_row_number = index + 2
 
             try:
-                # --- TEK GERÇEK ZORUNLU ALAN: waybill_number (tam 10 haneli rakam) ---
-                waybill_number = self._normalize_waybill_number(row["waybill_number"])
-                if waybill_number is None:
-                    raise ValueError("waybill_number tam 10 haneli bir rakam olmalıdır.")
-                
+                awb_col = field_to_col["waybill_number"]
+                waybill_number = self._normalize_waybill_number(row[awb_col])
+                if not waybill_number:
+                    raise ValueError("AWB / Konşimento numarası boş olamaz.")
 
-                # --- shipment_date: boşsa/geçersizse placeholder tarihe düşer ---
-                if pd.isna(row["shipment_date"]):
-                    shipment_date = PLACEHOLDER_DATE
-                else:
-                    try:
-                        shipment_date = pd.to_datetime(row["shipment_date"]).date()
-                    except (ValueError, TypeError):
-                        shipment_date = PLACEHOLDER_DATE
+                # Opsiyonel alanları çek ve normalize et
+                shipment_date = (
+                    self._parse_date(row[field_to_col["shipment_date"]])
+                    if "shipment_date" in field_to_col
+                    else PLACEHOLDER_DATE
+                )
 
-                # --- weight: boş/geçersizse None ("VERİ YOK") olarak kaydedilir ---
-                weight_raw = row["weight"]
-                if pd.isna(weight_raw):
-                    weight = None
-                else:
-                    try:
-                        weight = float(weight_raw)
-                        if weight <= 0:
-                            weight = None
-                    except (ValueError, TypeError):
-                        weight = None
+                sender = (
+                    self._normalize_text_field(row[field_to_col["sender"]])
+                    if "sender" in field_to_col
+                    else "-"
+                )
 
-                # --- status: geçersizse PENDING'e düşer ---
-                status_value = str(row.get("status", "PENDING")).strip().upper()
-                valid_statuses = [c[0] for c in Waybill.StatusChoices.choices]
-                if status_value not in valid_statuses:
-                    status_value = Waybill.StatusChoices.PENDING
+                destination = (
+                    self._normalize_text_field(row[field_to_col["destination"]])
+                    if "destination" in field_to_col
+                    else "-"
+                )
 
-                # --- sender / receiver: boşsa "-" ---
-                sender = self._normalize_optional_field(row["sender"])
-                receiver = self._normalize_optional_field(row["receiver"])
+                piece_count = (
+                    self._parse_int(row[field_to_col["piece_count"]])
+                    if "piece_count" in field_to_col
+                    else None
+                )
+
+                collected_by = (
+                    self._normalize_text_field(row[field_to_col["collected_by"]])
+                    if "collected_by" in field_to_col
+                    else "-"
+                )
+
+                delivered = (
+                    self._parse_boolean(row[field_to_col["delivered"]])
+                    if "delivered" in field_to_col
+                    else False
+                )
+
+                receiver = (
+                    self._normalize_text_field(row[field_to_col["receiver"]])
+                    if "receiver" in field_to_col
+                    else "-"
+                )
+
+                euro_amount = (
+                    self._parse_decimal(row[field_to_col["euro_amount"]], decimal_places=2)
+                    if "euro_amount" in field_to_col
+                    else None
+                )
+
+                exchange_rate = (
+                    self._parse_decimal(row[field_to_col["exchange_rate"]], decimal_places=4)
+                    if "exchange_rate" in field_to_col
+                    else None
+                )
 
                 data = {
                     "waybill_number": waybill_number,
                     "shipment_date": shipment_date,
-                    "status": status_value,
                     "sender": sender,
+                    "destination": destination,
+                    "piece_count": piece_count,
+                    "collected_by": collected_by,
+                    "delivered": delivered,
                     "receiver": receiver,
-                    "weight": weight,
+                    "euro_amount": euro_amount,
+                    "exchange_rate": exchange_rate,
                 }
 
                 if waybill_number in existing_numbers:
@@ -286,18 +419,27 @@ class WaybillExcelUploadView(APIView):
 
 class WaybillListView(generics.ListAPIView):
     """
-    GET /api/waybills/?start_date=2026-06-01&end_date=2026-06-30&status=PENDING&page=1
+    GET /api/waybills/?start_date=...&end_date=...&delivered=true&page=1
 
-    Tarih aralığına, duruma ve eksik-veri durumuna göre filtreleme + sayfalama
-    destekler. Ayrıca filtrelenmiş TÜM sonuç kümesi için özet (toplam kayıt
-    sayısı, toplam ağırlık) bilgisi döner.
+    Tarih aralığına, teslim durumuna ve eksik-veri durumuna göre filtreleme + sayfalama.
     """
     serializer_class = WaybillSerializer
     pagination_class = WaybillPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["waybill_number", "sender", "receiver"]
-    ordering_fields = ["waybill_number", "shipment_date", "status", "sender", "receiver", "weight"]
-    ordering = ["-shipment_date"]
+    search_fields = ["waybill_number", "sender", "receiver", "destination", "collected_by"]
+    ordering_fields = [
+        "waybill_number",
+        "shipment_date",
+        "sender",
+        "destination",
+        "piece_count",
+        "collected_by",
+        "delivered",
+        "receiver",
+        "euro_amount",
+        "exchange_rate",
+    ]
+    ordering = ["-shipment_date", "-id"]
 
     def get_queryset(self):
         return filter_waybills_queryset(self.request)
@@ -307,7 +449,9 @@ class WaybillListView(generics.ListAPIView):
 
         summary = queryset.aggregate(
             total_count=Count("id"),
-            total_weight=Sum("weight"),
+            total_pieces=Sum("piece_count"),
+            total_euro=Sum("euro_amount"),
+            delivered_count=Count("id", filter=Q(delivered=True)),
         )
 
         page = self.paginate_queryset(queryset)
@@ -316,7 +460,9 @@ class WaybillListView(generics.ListAPIView):
             response = self.get_paginated_response(serializer.data)
             response.data["summary"] = {
                 "total_count": summary["total_count"] or 0,
-                "total_weight": float(summary["total_weight"] or 0),
+                "total_pieces": summary["total_pieces"] or 0,
+                "total_euro": float(summary["total_euro"] or 0),
+                "delivered_count": summary["delivered_count"] or 0,
             }
             return response
 
@@ -330,10 +476,7 @@ class WaybillListView(generics.ListAPIView):
 
 class WaybillExportView(APIView):
     """
-    GET /api/waybills/export/?start_date=...&end_date=...&status=...
-
-    WaybillListView ile AYNI filtreleme mantığını (filter_waybills_queryset)
-    kullanır, ama sayfalama uygulamadan TÜM sonuçları bir .xlsx dosyası olarak döner.
+    GET /api/waybills/export/?start_date=...&end_date=...&delivered=...
     """
 
     def get(self, request, *args, **kwargs):
@@ -343,7 +486,19 @@ class WaybillExportView(APIView):
         ws = wb.active
         ws.title = "Konşimentolar"
 
-        headers = ["Konşimento No", "Sevkiyat Tarihi", "Durum", "Gönderici", "Alıcı", "Ağırlık (kg)"]
+        headers = [
+            "Tarih",
+            "AWB",
+            "Gönderici Firma/Şahıs",
+            "Ülke-Varış Noktası",
+            "Parça",
+            "Toplayan",
+            "Teslim Edildi",
+            "Alıcı Firma/Şahıs",
+            "Euro",
+            "Kur",
+            "Ödenen Tutar (TL)",
+        ]
         ws.append(headers)
 
         header_font = Font(bold=True, color="FFFFFF")
@@ -354,16 +509,26 @@ class WaybillExportView(APIView):
             cell.fill = header_fill
 
         for waybill in queryset.iterator():
+            shipment_date_str = (
+                waybill.shipment_date.strftime("%d.%m.%Y")
+                if waybill.shipment_date != PLACEHOLDER_DATE
+                else "VERİ YOK"
+            )
             ws.append([
+                shipment_date_str,
                 waybill.waybill_number,
-                waybill.shipment_date.strftime("%d.%m.%Y"),
-                waybill.get_status_display(),
                 waybill.sender,
+                waybill.destination,
+                waybill.piece_count if waybill.piece_count is not None else "-",
+                waybill.collected_by,
+                "Evet" if waybill.delivered else "Hayır",
                 waybill.receiver,
-                float(waybill.weight) if waybill.weight is not None else "VERİ YOK",
+                float(waybill.euro_amount) if waybill.euro_amount is not None else "-",
+                float(waybill.exchange_rate) if waybill.exchange_rate is not None else "-",
+                waybill.payment_amount if waybill.payment_amount is not None else "-",
             ])
 
-        column_widths = [18, 15, 15, 28, 28, 12]
+        column_widths = [15, 18, 28, 22, 10, 18, 14, 28, 12, 10, 16]
         for i, width in enumerate(column_widths, start=1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 
@@ -385,10 +550,10 @@ class WaybillExportView(APIView):
 
 class WaybillDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET    /api/waybills/<id>/  -> tekil kayıt detayı
-    PATCH  /api/waybills/<id>/  -> kısmi güncelleme (sadece değişen alanlar gönderilir)
-    PUT    /api/waybills/<id>/  -> tam güncelleme (tüm alanlar gönderilmeli)
-    DELETE /api/waybills/<id>/  -> kaydı sil
+    GET    /api/waybills/<id>/
+    PATCH  /api/waybills/<id>/
+    PUT    /api/waybills/<id>/
+    DELETE /api/waybills/<id>/
     """
     queryset = Waybill.objects.all()
-    serializer_class = WaybillSerializer
+    serializer_class = WaybillSerializer

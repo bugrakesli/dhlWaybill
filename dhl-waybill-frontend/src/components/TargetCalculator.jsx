@@ -1,44 +1,39 @@
 import { useState } from "react";
 
 /**
- * Filtrelenmiş sonuçların (gerçekleşen sayı + toplam ağırlık) elle girilen
+ * Filtrelenmiş sonuçların (gerçekleşen sayı + toplam euro) elle girilen
  * hedeflere göre ne kadarının tutturulduğunu hesaplayan panel.
  *
  * Formül:
- *   hedef_gerceklesme_orani = (gerceklesen * 100) / hedef
- *   agirlik_orani           = (gonderilen_agirlik * 100) / hedef_agirlik
- *   toplam_hedef            = (hedef_gerceklesme_orani * agirlik_orani) / 100
- *
- * "Gerçekleşen" ve "Gönderilen Ağırlık" summary prop'undan otomatik gelir
- * (o an ekrandaki filtreye göre) -- kullanıcı sadece hedefleri girer.
+ *   hedef_gerceklesme_orani = (gerceklesen_adet * 100) / hedef_adet
+ *   euro_orani              = (gerceklesen_euro * 100) / hedef_euro
+ *   toplam_hedef            = (hedef_gerceklesme_orani * euro_orani) / 100
  */
 function TargetCalculator({ summary }) {
   const [isOpen, setIsOpen] = useState(false);
   const [targetCount, setTargetCount] = useState("");
-  const [targetWeight, setTargetWeight] = useState("");
+  const [targetEuro, setTargetEuro] = useState("");
 
   const realizedCount = summary?.total_count ?? 0;
-  const realizedWeight = summary?.total_weight ?? 0;
+  const realizedEuro = summary?.total_euro ?? 0;
 
   const parsedTargetCount = parseFloat(targetCount);
-  const parsedTargetWeight = parseFloat(targetWeight);
+  const parsedTargetEuro = parseFloat(targetEuro);
 
   const hasValidTargetCount = !isNaN(parsedTargetCount) && parsedTargetCount > 0;
-  const hasValidTargetWeight = !isNaN(parsedTargetWeight) && parsedTargetWeight > 0;
+  const hasValidTargetEuro = !isNaN(parsedTargetEuro) && parsedTargetEuro > 0;
 
-  // Oranlar %100'ü geçemez -- hedefin üzerine çıkılması "fazla başarı" değil,
-// sadece hedefin tutturulduğu anlamına gelmeli.
   const completionRate = hasValidTargetCount
     ? Math.min((realizedCount * 100) / parsedTargetCount, 100)
     : null;
 
-  const weightRate = hasValidTargetWeight
-    ? Math.min((realizedWeight * 100) / parsedTargetWeight, 100)
+  const euroRate = hasValidTargetEuro
+    ? Math.min((realizedEuro * 100) / parsedTargetEuro, 100)
     : null;
 
   const totalTarget =
-    completionRate !== null && weightRate !== null
-      ? (completionRate * weightRate) / 100
+    completionRate !== null && euroRate !== null
+      ? (completionRate * euroRate) / 100
       : null;
 
   const formatPercent = (value) =>
@@ -69,13 +64,13 @@ function TargetCalculator({ summary }) {
             </label>
 
             <label>
-              Hedef Ağırlık (kg)
+              Hedef Tutar (€)
               <input
                 type="number"
                 min="0"
-                value={targetWeight}
-                onChange={(e) => setTargetWeight(e.target.value)}
-                placeholder="Örn: 5000"
+                value={targetEuro}
+                onChange={(e) => setTargetEuro(e.target.value)}
+                placeholder="Örn: 10000"
               />
             </label>
           </div>
@@ -86,21 +81,21 @@ function TargetCalculator({ summary }) {
               <strong>{realizedCount}</strong>
             </div>
             <div className="target-result-row">
-              <span>Gönderilen Ağırlık:</span>
+              <span>Toplam Euro:</span>
               <strong>
-                {realizedWeight.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} kg
+                {realizedEuro.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
               </strong>
             </div>
 
             <hr />
 
             <div className="target-result-row">
-              <span>Hedef Gerçekleşme Oranı:</span>
+              <span>Adet Gerçekleşme Oranı:</span>
               <strong>{formatPercent(completionRate)}</strong>
             </div>
             <div className="target-result-row">
-              <span>Ağırlık Oranı:</span>
-              <strong>{formatPercent(weightRate)}</strong>
+              <span>Ciro / Tutar Oranı:</span>
+              <strong>{formatPercent(euroRate)}</strong>
             </div>
 
             <div className="target-result-row target-result-final">
@@ -114,4 +109,4 @@ function TargetCalculator({ summary }) {
   );
 }
 
-export default TargetCalculator;
+export default TargetCalculator;
