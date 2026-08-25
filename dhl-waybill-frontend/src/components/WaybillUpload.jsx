@@ -19,8 +19,13 @@ function WaybillUpload({ onUploadSuccess }) {
     setUploadResult(null);
     setUploadError(null);
 
-    if (file && !file.name.endsWith(".xlsx")) {
-      setUploadError("Yalnızca .xlsx dosyaları kabul edilir.");
+    // 1) input:
+    accept=".xlsx,.xls,.csv"
+
+    // 2) validasyon:
+    const allowedExtensions = /\.(xlsx|xls|csv)$/i;
+    if (file && !allowedExtensions.test(file.name)) {
+      setUploadError("Yalnızca .xlsx, .xls veya .csv dosyaları kabul edilir.");
       setSelectedFile(null);
       return;
     }
@@ -72,7 +77,7 @@ function WaybillUpload({ onUploadSuccess }) {
 
       <input
         type="file"
-        accept=".xlsx"
+        accept=".xlsx,.xls,.csv"
         onChange={handleFileChange}
         disabled={isUploading}
       />
