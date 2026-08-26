@@ -14,22 +14,20 @@ import DeleteConfirmDialog from "./components/DeleteConfirmDialog";
 import "./App.css";
 
 function App() {
-  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [incompleteMode, setIncompleteMode] = useState(0); // 0: Kapalı, 1: Vurgulu (Tümü), 2: Sadece Eksikler
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("shipment_date");
   const [sortDirection, setSortDirection] = useState("desc");
 
-  const [{ startDate: defaultStart, endDate: defaultEnd }] = useState(getLastMonthRange);
-
-  const [startDate, setStartDate] = useState(defaultStart);
-  const [endDate, setEndDate] = useState(defaultEnd);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [deliveredFilter, setDeliveredFilter] = useState("all");
 
   const [activeFilters, setActiveFilters] = useState({
-    startDate: defaultStart,
-    endDate: defaultEnd,
+    startDate: "",
+    endDate: "",
     delivered: "all",
-    incomplete: false,
+    incompleteMode: 0,
   });
 
   const [waybills, setWaybills] = useState([]);
@@ -57,9 +55,9 @@ function App() {
   };
 
   const handleToggleIncomplete = () => {
-    setShowIncompleteOnly((prev) => {
-      const nextVal = !prev;
-      setActiveFilters((f) => ({ ...f, incomplete: nextVal }));
+    setIncompleteMode((prev) => {
+      const nextVal = (prev + 1) % 3;
+      setActiveFilters((f) => ({ ...f, incompleteMode: nextVal }));
       return nextVal;
     });
     setCurrentPage(1);
@@ -78,18 +76,21 @@ function App() {
   const fetchWaybills = useCallback(async () => {
     setIsLoading(true);
 
+    const isModeActive = incompleteMode > 0;
+    const isModeOnlyIncomplete = incompleteMode === 2;
+
     try {
       const response = await apiClient.get("waybills/", {
         params: {
-          start_date: showIncompleteOnly ? undefined : activeFilters.startDate,
-          end_date: showIncompleteOnly ? undefined : activeFilters.endDate,
+          start_date: isModeActive ? undefined : (activeFilters.startDate || undefined),
+          end_date: isModeActive ? undefined : (activeFilters.endDate || undefined),
           delivered:
             activeFilters.delivered && activeFilters.delivered !== "all"
               ? activeFilters.delivered
               : undefined,
           ordering: sortDirection === "desc" ? `-${sortField}` : sortField,
           search: searchQuery || undefined,
-          incomplete: showIncompleteOnly ? "true" : undefined,
+          incomplete: isModeOnlyIncomplete ? "true" : undefined,
           page: currentPage,
         },
       });
@@ -109,7 +110,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, showIncompleteOnly]);
+  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, incompleteMode]);
 
   useEffect(() => {
     fetchWaybills();
@@ -119,7 +120,7 @@ function App() {
   // eski sayfadan kalan seçim başka kayıtları silmeye yol açmasın diye temizle.
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, showIncompleteOnly]);
+  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, incompleteMode]);
 
   const handleApplyFilter = () => {
     setCurrentPage(1);
@@ -127,6 +128,17 @@ function App() {
       ...prev,
       startDate,
       endDate,
+    }));
+  };
+
+  const handleClearDateFilter = () => {
+    setStartDate("");
+    setEndDate("");
+    setCurrentPage(1);
+    setActiveFilters((prev) => ({
+      ...prev,
+      startDate: "",
+      endDate: "",
     }));
   };
 
@@ -205,10 +217,25 @@ function App() {
 
       <button
         type="button"
-        className={`incomplete-toggle ${showIncompleteOnly ? "incomplete-toggle-active" : ""}`}
+        className={`incomplete-toggle ${
+          incompleteMode === 1
+            ? "incomplete-toggle-stage1"
+            : incompleteMode === 2
+            ? "incomplete-toggle-active"
+            : ""
+        }`}
         onClick={handleToggleIncomplete}
+        title={
+          incompleteMode === 0
+            ? "Eksik verileri vurgulamak için tıklayın (Mod 1)"
+            : incompleteMode === 1
+            ? "Sadece eksik verileri filtrelemek için tıklayın (Mod 2)"
+            : "Eksik veri filtresini kapatıp varsayılan görünüme dönmek için tıklayın"
+        }
       >
-        ⚠️ {showIncompleteOnly ? "Eksik Veri Filtresi Açık" : "Sadece Eksik Verileri Göster"}
+        {incompleteMode === 0 && "⚠️ Eksik Verileri Vurgula"}
+        {incompleteMode === 1 && "⚠️ Eksik Veriler Vurgulandı (Tümü)"}
+        {incompleteMode === 2 && "⚠️ Sadece Eksik Veriler"}
       </button>
 
       <DateRangeFilter
@@ -217,6 +244,7 @@ function App() {
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
         onApply={handleApplyFilter}
+        onClear={handleClearDateFilter}
       />
 
       <StatusFilter
@@ -251,6 +279,7 @@ function App() {
         selectedIds={selectedIds}
         onToggleSelect={handleToggleSelect}
         onToggleSelectAll={handleToggleSelectAll}
+        highlightIncomplete={incompleteMode > 0}
       />
 
       <EditWaybillModal

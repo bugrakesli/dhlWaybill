@@ -13,6 +13,7 @@ class WaybillSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
+    is_incomplete = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Waybill
@@ -29,10 +30,11 @@ class WaybillSerializer(serializers.ModelSerializer):
             "euro_amount",
             "exchange_rate",
             "payment_amount",
+            "is_incomplete",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "payment_amount", "created_at", "updated_at"]
+        read_only_fields = ["id", "payment_amount", "is_incomplete", "created_at", "updated_at"]
 
     def validate_waybill_number(self, value):
         value = str(value).strip()

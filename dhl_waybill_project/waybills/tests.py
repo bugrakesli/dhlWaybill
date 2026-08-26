@@ -36,6 +36,35 @@ class WaybillModelTests(TestCase):
         )
         self.assertIsNone(waybill.payment_amount)
 
+    def test_is_incomplete_property(self):
+        complete_wb = Waybill.objects.create(
+            waybill_number="AWB100",
+            shipment_date=date(2026, 6, 1),
+            sender="Firma",
+            destination="Almanya",
+            piece_count=1,
+            collected_by="Kurye",
+            delivered=True,
+            receiver="Alici",
+            euro_amount=Decimal("100.00"),
+            exchange_rate=Decimal("35.0000"),
+        )
+        self.assertFalse(complete_wb.is_incomplete)
+
+        incomplete_wb = Waybill.objects.create(
+            waybill_number="AWB101",
+            shipment_date=date(1900, 1, 1),
+            sender="-",
+            destination="-",
+            piece_count=None,
+            collected_by="-",
+            delivered=False,
+            receiver="-",
+            euro_amount=None,
+            exchange_rate=None,
+        )
+        self.assertTrue(incomplete_wb.is_incomplete)
+
 
 class WaybillAPITests(TestCase):
     def setUp(self):

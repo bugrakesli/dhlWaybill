@@ -1,3 +1,5 @@
+import { isWaybillIncomplete, getIncompleteFields } from "../utils/incompleteHelpers";
+
 const COLUMNS = [
   { field: "shipment_date", label: "Tarih" },
   { field: "waybill_number", label: "AWB" },
@@ -49,6 +51,7 @@ function WaybillTable({
   selectedIds = [],
   onToggleSelect,
   onToggleSelectAll,
+  highlightIncomplete = false,
 }) {
   const isInitialLoad = isLoading && (!waybills || waybills.length === 0);
 
@@ -98,50 +101,72 @@ function WaybillTable({
           </tr>
         </thead>
         <tbody>
-          {waybills.map((waybill) => (
-            <tr key={waybill.id}>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(waybill.id)}
-                  onChange={() => onToggleSelect(waybill.id)}
-                />
-              </td>
-              <td>{formatDate(waybill.shipment_date)}</td>
-              <td><strong>{waybill.waybill_number}</strong></td>
-              <td>{waybill.sender}</td>
-              <td>{waybill.destination}</td>
-              <td>{waybill.piece_count ?? "-"}</td>
-              <td>{waybill.collected_by}</td>
-              <td>
-                <span className={`delivery-badge ${waybill.delivered ? "delivery-badge-yes" : "delivery-badge-no"}`}>
-                  {waybill.delivered ? "Evet" : "Hayır"}
-                </span>
-              </td>
-              <td>{waybill.receiver}</td>
-              <td>{formatCurrency(waybill.euro_amount, "€")}</td>
-              <td>{formatRate(waybill.exchange_rate)}</td>
-              <td><strong>{formatCurrency(waybill.payment_amount, "₺")}</strong></td>
-              <td className="actions-cell">
-                <div className="actions-wrapper">
-                  <button
-                    className="action-button action-edit"
-                    onClick={() => onEdit(waybill)}
-                    title="Düzenle"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className="action-button action-delete"
-                    onClick={() => onDelete(waybill)}
-                    title="Sil"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {waybills.map((waybill) => {
+            const isIncomplete = isWaybillIncomplete(waybill);
+            const shouldHighlight = highlightIncomplete && isIncomplete;
+            const missingFields = shouldHighlight ? getIncompleteFields(waybill) : [];
+
+            return (
+              <tr key={waybill.id} className={shouldHighlight ? "incomplete-row" : ""}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(waybill.id)}
+                    onChange={() => onToggleSelect(waybill.id)}
+                  />
+                </td>
+                <td>{formatDate(waybill.shipment_date)}</td>
+                <td>
+                  <div className="awb-cell-content">
+                    <strong>{waybill.waybill_number}</strong>
+                    {shouldHighlight && (
+                      <span
+                        className="incomplete-badge"
+                        title={
+                          missingFields.length > 0
+                            ? `Eksik alanlar: ${missingFields.join(", ")}`
+                            : "Eksik veri barındırıyor"
+                        }
+                      >
+                        ⚠️
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td>{waybill.sender}</td>
+                <td>{waybill.destination}</td>
+                <td>{waybill.piece_count ?? "-"}</td>
+                <td>{waybill.collected_by}</td>
+                <td>
+                  <span className={`delivery-badge ${waybill.delivered ? "delivery-badge-yes" : "delivery-badge-no"}`}>
+                    {waybill.delivered ? "Evet" : "Hayır"}
+                  </span>
+                </td>
+                <td>{waybill.receiver}</td>
+                <td>{formatCurrency(waybill.euro_amount, "€")}</td>
+                <td>{formatRate(waybill.exchange_rate)}</td>
+                <td><strong>{formatCurrency(waybill.payment_amount, "₺")}</strong></td>
+                <td className="actions-cell">
+                  <div className="actions-wrapper">
+                    <button
+                      className="action-button action-edit"
+                      onClick={() => onEdit(waybill)}
+                      title="Düzenle"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="action-button action-delete"
+                      onClick={() => onDelete(waybill)}
+                      title="Sil"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

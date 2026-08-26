@@ -1,3 +1,4 @@
+from datetime import date
 from django.db import models
 from django.core.validators import MinValueValidator
 
@@ -86,6 +87,24 @@ class Waybill(models.Model):
         if self.euro_amount is not None and self.exchange_rate is not None:
             return round(float(self.euro_amount * self.exchange_rate), 2)
         return None
+
+    @property
+    def is_incomplete(self):
+        """
+        Herhangi bir zorunlu alan eksik mi (tarih 1900-01-01, placeholder metinler '-', veya boş/None alanlar).
+        """
+        PLACEHOLDER_DATE = date(1900, 1, 1)
+        PLACEHOLDER_TEXT = "-"
+        return (
+            self.shipment_date == PLACEHOLDER_DATE
+            or self.sender == PLACEHOLDER_TEXT
+            or self.receiver == PLACEHOLDER_TEXT
+            or self.destination == PLACEHOLDER_TEXT
+            or self.collected_by == PLACEHOLDER_TEXT
+            or self.euro_amount is None
+            or self.exchange_rate is None
+            or self.piece_count is None
+        )
 
     class Meta:
         ordering = ["-shipment_date", "-id"]

@@ -13,16 +13,19 @@ function ExportButton({ activeFilters }) {
     setIsExporting(true);
     setExportError(null);
 
+    const isModeActive = activeFilters?.incompleteMode > 0;
+    const isModeOnlyIncomplete = activeFilters?.incompleteMode === 2;
+
     try {
       const response = await apiClient.get("waybills/export/", {
         params: {
-          start_date: activeFilters.startDate,
-          end_date: activeFilters.endDate,
+          start_date: isModeActive ? undefined : (activeFilters.startDate || undefined),
+          end_date: isModeActive ? undefined : (activeFilters.endDate || undefined),
           delivered:
             activeFilters.delivered && activeFilters.delivered !== "all"
               ? activeFilters.delivered
               : undefined,
-          incomplete: activeFilters.incomplete ? "true" : undefined,
+          incomplete: isModeOnlyIncomplete ? "true" : undefined,
         },
         responseType: "blob",
       });
