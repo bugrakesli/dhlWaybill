@@ -237,10 +237,26 @@ class WaybillExcelUploadView(APIView):
     def _parse_boolean(self, raw_value):
         if pd.isna(raw_value):
             return False
-        val_str = str(raw_value).strip().lower()
-        if val_str in {"1", "true", "t", "evet", "e", "yes", "y", "teslim", "teslim edildi", "ok", "+"}:
-            return True
-        return False
+
+        # Python'un .lower()'ı Türkçe'ye duyarlı değil: "İ".lower() -> "i̇" (nokta
+        # karakteri ayrı kalır) üretir, "i" değil. Bu yüzden "TESLİM EDİLDİ" gibi
+        # büyük harfli Türkçe hücreler normal .lower() ile hiç eşleşmiyordu.
+        val_str = str(raw_value).strip()
+        val_str = (
+            val_str.replace("İ", "i").replace("I", "ı")
+            .replace("Ş", "ş").replace("Ğ", "ğ")
+            .replace("Ü", "ü").replace("Ö", "ö").replace("Ç", "ç")
+            .lower()
+        )
+
+        true_values = {
+            "1", "true", "t", "yes", "y", "ok", "+",
+            "✓", "✔", "✅", "☑",
+            "evet", "e", "edildi", "teslim", "teslim edildi",
+            "teslim oldu", "tamamlandı", "tamamlandi", "tamam",
+            "ulaştı", "ulasti", "alındı", "alindi",
+        }
+        return val_str in true_values
 
     def post(self, request, *args, **kwargs):
         upload_serializer = WaybillExcelUploadSerializer(data=request.data)
@@ -556,4 +572,4 @@ class WaybillDetailView(generics.RetrieveUpdateDestroyAPIView):
     DELETE /api/waybills/<id>/
     """
     queryset = Waybill.objects.all()
-    serializer_class = WaybillSerializer
+    serializer_class = WaybillSerializer
