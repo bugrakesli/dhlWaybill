@@ -1,7 +1,3 @@
-/**
- * Bugünün tarihine göre "geçen ayın" ilk ve son gününü hesaplar.
- * Backend'in beklediği format: YYYY-MM-DD (ISO date string)
- */
 export function getLastMonthRange() {
   const today = new Date();
 
@@ -14,7 +10,7 @@ export function getLastMonthRange() {
 
   return {
     startDate: formatDateToISO(firstDayOfLastMonth),
-    endDate: formatDateToISO(lastDayOfLastMonth),
+    endDate: formatDateToISO(today),   // <-- değişen tek satır: bugünün tarihi
   };
 }
 
