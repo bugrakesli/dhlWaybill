@@ -15,16 +15,10 @@ function WaybillUpload({ onUploadSuccess }) {
   const handleFileChange = (event) => {
     const file = event.target.files[0];
 
-    // Dosya seçildiğinde önceki sonuç/hata mesajlarını temizle
-    setUploadResult(null);
-    setUploadError(null);
-
-    // 1) input:
-    accept=".xlsx,.xls,.csv"
-
-    // 2) validasyon:
-    const allowedExtensions = /\.(xlsx|xls|csv)$/i;
-    if (file && !allowedExtensions.test(file.name)) {
+     setUploadResult(null);
+     setUploadError(null);
+     const allowedExtensions = /\.(xlsx|xls|csv)$/i;
+     if (file && !allowedExtensions.test(file.name)) {
       setUploadError("Yalnızca .xlsx, .xls veya .csv dosyaları kabul edilir.");
       setSelectedFile(null);
       return;
