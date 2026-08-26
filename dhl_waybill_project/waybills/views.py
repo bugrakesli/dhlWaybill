@@ -561,7 +561,44 @@ class WaybillExportView(APIView):
 
 
 # --------------------------------------------------------------------------
-# 4) TEKİL KAYIT: GÖRÜNTÜLEME, GÜNCELLEME, SİLME
+# 4) TOPLU SİLME ENDPOINT'İ
+# --------------------------------------------------------------------------
+
+class WaybillBulkDeleteView(APIView):
+    """
+    POST /api/waybills/bulk-delete/
+    Body: {"ids": [1, 2, 3]}
+
+    Seçilen id'lere sahip Waybill kayıtlarını tek seferde siler.
+    """
+
+    def post(self, request, *args, **kwargs):
+        ids = request.data.get("ids")
+
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "Silinecek kayıtların id listesi (ids) gönderilmelidir."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            ids = [int(i) for i in ids]
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "ids listesi yalnızca sayısal id'lerden oluşmalıdır."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_count, _ = Waybill.objects.filter(id__in=ids).delete()
+
+        return Response(
+            {"detail": f"{deleted_count} kayıt silindi.", "deleted": deleted_count},
+            status=status.HTTP_200_OK,
+        )
+
+
+# --------------------------------------------------------------------------
+# 5) TEKİL KAYIT: GÖRÜNTÜLEME, GÜNCELLEME, SİLME
 # --------------------------------------------------------------------------
 
 class WaybillDetailView(generics.RetrieveUpdateDestroyAPIView):

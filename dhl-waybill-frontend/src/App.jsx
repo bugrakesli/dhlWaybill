@@ -47,6 +47,10 @@ function App() {
   const [deletingWaybill, setDeletingWaybill] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
   const handleSearchChange = (query) => {
     setSearchQuery(query);
     setCurrentPage(1);
@@ -111,6 +115,12 @@ function App() {
     fetchWaybills();
   }, [fetchWaybills]);
 
+  // Filtre/sayfa/arama değiştiğinde ekrandaki kayıt kümesi değişir --
+  // eski sayfadan kalan seçim başka kayıtları silmeye yol açmasın diye temizle.
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, showIncompleteOnly]);
+
   const handleApplyFilter = () => {
     setCurrentPage(1);
     setActiveFilters((prev) => ({
@@ -152,6 +162,39 @@ function App() {
     }
   };
 
+  const handleToggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((existingId) => existingId !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    const pageIds = waybills.map((w) => w.id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
+    setSelectedIds((prev) =>
+      allSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...new Set([...prev, ...pageIds])]
+    );
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedIds.length === 0) return;
+
+    setIsBulkDeleting(true);
+    try {
+      await apiClient.post("waybills/bulk-delete/", { ids: selectedIds });
+      setSelectedIds([]);
+      setIsBulkDeleteConfirmOpen(false);
+      fetchWaybills();
+    } catch (error) {
+      console.error("Toplu silme hatası:", error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="app-container">
       <h1>DHL Konşimento Yönetimi</h1>
@@ -185,6 +228,14 @@ function App() {
         <SummaryBar summary={summary} isLoading={isLoading} />
         <ExportButton activeFilters={activeFilters} />
         <TargetCalculator summary={summary} />
+        <button
+          type="button"
+          className="bulk-delete-button"
+          disabled={selectedIds.length === 0}
+          onClick={() => setIsBulkDeleteConfirmOpen(true)}
+        >
+          🗑️ Seçilenleri Sil {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
+        </button>
       </div>
 
       <WaybillTable
@@ -197,6 +248,9 @@ function App() {
         onSort={handleSort}
         onEdit={setEditingWaybill}
         onDelete={setDeletingWaybill}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
+        onToggleSelectAll={handleToggleSelectAll}
       />
 
       <EditWaybillModal
@@ -206,10 +260,25 @@ function App() {
       />
 
       <DeleteConfirmDialog
-        waybill={deletingWaybill}
+        isOpen={!!deletingWaybill}
+        title="Kaydı Sil"
+        message={
+          deletingWaybill
+            ? `${deletingWaybill.waybill_number} numaralı konşimentoyu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`
+            : ""
+        }
         onCancel={() => setDeletingWaybill(null)}
         onConfirm={handleDeleteConfirm}
         isDeleting={isDeleting}
+      />
+
+      <DeleteConfirmDialog
+        isOpen={isBulkDeleteConfirmOpen}
+        title="Seçilenleri Sil"
+        message={`${selectedIds.length} kayıt kalıcı olarak silinecek. Bu işlem geri alınamaz.`}
+        onCancel={() => setIsBulkDeleteConfirmOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        isDeleting={isBulkDeleting}
       />
     </div>
   );

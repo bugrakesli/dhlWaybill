@@ -46,6 +46,9 @@ function WaybillTable({
   onSort,
   onEdit,
   onDelete,
+  selectedIds = [],
+  onToggleSelect,
+  onToggleSelectAll,
 }) {
   const isInitialLoad = isLoading && (!waybills || waybills.length === 0);
 
@@ -57,11 +60,23 @@ function WaybillTable({
     return <p>Bu kriterlere uygun kayıt bulunamadı.</p>;
   }
 
+  const pageIds = waybills.map((w) => w.id);
+  const allOnPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
   return (
     <div className={`table-container ${isLoading ? "table-refreshing" : ""}`}>
       <table>
         <thead>
           <tr>
+            <th>
+              <input
+                type="checkbox"
+                checked={allOnPageSelected}
+                onChange={onToggleSelectAll}
+                title="Bu sayfadaki tümünü seç"
+              />
+            </th>
             {COLUMNS.map((column) => {
               const isActiveSort = sortField === column.field;
               return (
@@ -85,6 +100,13 @@ function WaybillTable({
         <tbody>
           {waybills.map((waybill) => (
             <tr key={waybill.id}>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(waybill.id)}
+                  onChange={() => onToggleSelect(waybill.id)}
+                />
+              </td>
               <td>{formatDate(waybill.shipment_date)}</td>
               <td><strong>{waybill.waybill_number}</strong></td>
               <td>{waybill.sender}</td>
