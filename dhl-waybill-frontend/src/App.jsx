@@ -49,10 +49,15 @@ function App() {
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  const handleSearchChange = (query) => {
-    setSearchQuery(query);
-    setCurrentPage(1);
-  };
+  const handleSearchChange = useCallback((query) => {
+    setSearchQuery((prev) => {
+      if (prev !== query) {
+        setCurrentPage(1);
+        return query;
+      }
+      return prev;
+    });
+  }, []);
 
   const handleToggleIncomplete = () => {
     setIncompleteMode((prev) => {

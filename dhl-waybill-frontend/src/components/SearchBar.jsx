@@ -8,20 +8,45 @@ import { useState, useEffect, useRef } from "react";
 function SearchBar({ onSearchChange }) {
   const [inputValue, setInputValue] = useState("");
   const debounceTimer = useRef(null);
+  const isFirstRun = useRef(true);
+  const onSearchChangeRef = useRef(onSearchChange);
 
   useEffect(() => {
-    // Önceki zamanlayıcıyı iptal et (kullanıcı hâlâ yazıyorsa)
+    onSearchChangeRef.current = onSearchChange;
+  }, [onSearchChange]);
+
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
     debounceTimer.current = setTimeout(() => {
-      onSearchChange(inputValue.trim());
+      if (onSearchChangeRef.current) {
+        onSearchChangeRef.current(inputValue.trim());
+      }
     }, 400);
 
-    // Component unmount olursa veya inputValue tekrar değişirse temizle
-    return () => clearTimeout(debounceTimer.current);
-  }, [inputValue, onSearchChange]);
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [inputValue]);
+
+  const handleClear = () => {
+    setInputValue("");
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    if (onSearchChangeRef.current) {
+      onSearchChangeRef.current("");
+    }
+  };
 
   return (
     <div className="search-bar-container">
@@ -36,7 +61,7 @@ function SearchBar({ onSearchChange }) {
         <button
           type="button"
           className="search-clear-button"
-          onClick={() => setInputValue("")}
+          onClick={handleClear}
           aria-label="Aramayı temizle"
         >
           ✕
