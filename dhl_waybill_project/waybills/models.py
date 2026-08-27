@@ -40,6 +40,15 @@ class Waybill(models.Model):
         verbose_name="Parça",
     )
 
+    weight = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Ağırlık (kg)",
+    )
+
     collected_by = models.CharField(
         max_length=255,
         default="-",

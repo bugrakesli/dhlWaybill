@@ -24,6 +24,7 @@ class WaybillSerializer(serializers.ModelSerializer):
             "sender",
             "destination",
             "piece_count",
+            "weight",
             "collected_by",
             "delivered",
             "receiver",
@@ -45,6 +46,11 @@ class WaybillSerializer(serializers.ModelSerializer):
     def validate_piece_count(self, value):
         if value is not None and value < 0:
             raise serializers.ValidationError("Parça sayısı 0 veya daha büyük olmalıdır.")
+        return value
+
+    def validate_weight(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Ağırlık 0 veya daha büyük olmalıdır.")
         return value
 
     def validate_euro_amount(self, value):

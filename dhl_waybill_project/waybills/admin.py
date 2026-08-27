@@ -10,6 +10,7 @@ class WaybillAdmin(admin.ModelAdmin):
         "receiver",
         "destination",
         "piece_count",
+        "weight",
         "collected_by",
         "delivered",
         "euro_amount",

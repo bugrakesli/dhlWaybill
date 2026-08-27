@@ -140,6 +140,7 @@ class WaybillAPITests(TestCase):
                 "GÖNDERİCİ FİRMA/ŞAHIS": "Yeni Gönderici",
                 "ÜLKE-VARIŞ NOKTASI": "İtalya",
                 "PARÇA": 4,
+                "AĞIRLIK": "12,75",
                 "TOPLAYAN": "Ali",
                 "TESLİM EDİLDİ": "Evet",
                 "ALICI FIRMA/ŞAHIS": "Yeni Alıcı",
@@ -152,6 +153,7 @@ class WaybillAPITests(TestCase):
                 "GÖNDERİCİ FİRMA/ŞAHIS": "",
                 "ÜLKE-VARIŞ NOKTASI": "",
                 "PARÇA": "",
+                "AĞIRLIK": "",
                 "TOPLAYAN": "",
                 "TESLİM EDİLDİ": "Hayır",
                 "ALICI FIRMA/ŞAHIS": "",
@@ -180,6 +182,7 @@ class WaybillAPITests(TestCase):
         wb1 = Waybill.objects.get(waybill_number="AWB2001")
         self.assertEqual(wb1.destination, "İtalya")
         self.assertEqual(wb1.piece_count, 4)
+        self.assertEqual(wb1.weight, Decimal("12.75"))
         self.assertTrue(wb1.delivered)
         self.assertEqual(wb1.euro_amount, Decimal("125.50"))
         self.assertEqual(wb1.exchange_rate, Decimal("36.2000"))
@@ -188,6 +191,7 @@ class WaybillAPITests(TestCase):
         self.assertEqual(wb2.sender, "-")
         self.assertFalse(wb2.delivered)
         self.assertIsNone(wb2.piece_count)
+        self.assertIsNone(wb2.weight)
         self.assertIsNone(wb2.euro_amount)
 
     def test_export_view(self):

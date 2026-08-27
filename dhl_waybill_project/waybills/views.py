@@ -135,6 +135,20 @@ class WaybillExcelUploadView(APIView):
         "PIECES": "piece_count",
         "PIECE_COUNT": "piece_count",
 
+        # weight
+        "AĞIRLIK": "weight",
+        "AGIRLIK": "weight",
+        "AĞIRLIK (KG)": "weight",
+        "AGIRLIK (KG)": "weight",
+        "AĞIRLIK(KG)": "weight",
+        "AGIRLIK(KG)": "weight",
+        "KİLO": "weight",
+        "KILO": "weight",
+        "WEIGHT": "weight",
+        "WEIGHT (KG)": "weight",
+        "WEIGHT(KG)": "weight",
+        "KG": "weight",
+
         # collected_by
         "TOPLAYAN": "collected_by",
         "TOPLAYAN KURYE": "collected_by",
@@ -343,6 +357,12 @@ class WaybillExcelUploadView(APIView):
                     else None
                 )
 
+                weight = (
+                    self._parse_decimal(row[field_to_col["weight"]], decimal_places=2)
+                    if "weight" in field_to_col
+                    else None
+                )
+
                 collected_by = (
                     self._normalize_text_field(row[field_to_col["collected_by"]])
                     if "collected_by" in field_to_col
@@ -379,6 +399,7 @@ class WaybillExcelUploadView(APIView):
                     "sender": sender,
                     "destination": destination,
                     "piece_count": piece_count,
+                    "weight": weight,
                     "collected_by": collected_by,
                     "delivered": delivered,
                     "receiver": receiver,
@@ -449,6 +470,7 @@ class WaybillListView(generics.ListAPIView):
         "sender",
         "destination",
         "piece_count",
+        "weight",
         "collected_by",
         "delivered",
         "receiver",
@@ -508,6 +530,7 @@ class WaybillExportView(APIView):
             "Gönderici Firma/Şahıs",
             "Ülke-Varış Noktası",
             "Parça",
+            "Ağırlık (kg)",
             "Toplayan",
             "Teslim Edildi",
             "Alıcı Firma/Şahıs",
@@ -536,6 +559,7 @@ class WaybillExportView(APIView):
                 waybill.sender,
                 waybill.destination,
                 waybill.piece_count if waybill.piece_count is not None else "-",
+                float(waybill.weight) if waybill.weight is not None else "-",
                 waybill.collected_by,
                 "Evet" if waybill.delivered else "Hayır",
                 waybill.receiver,
@@ -544,7 +568,7 @@ class WaybillExportView(APIView):
                 waybill.payment_amount if waybill.payment_amount is not None else "-",
             ])
 
-        column_widths = [15, 18, 28, 22, 10, 18, 14, 28, 12, 10, 16]
+        column_widths = [15, 18, 28, 22, 10, 14, 18, 14, 28, 12, 10, 16]
         for i, width in enumerate(column_widths, start=1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 

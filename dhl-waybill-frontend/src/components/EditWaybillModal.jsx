@@ -17,6 +17,7 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
         sender: waybill.sender || "",
         destination: waybill.destination || "",
         piece_count: waybill.piece_count !== null && waybill.piece_count !== undefined ? waybill.piece_count : "",
+        weight: waybill.weight !== null && waybill.weight !== undefined ? waybill.weight : "",
         collected_by: waybill.collected_by || "",
         delivered: Boolean(waybill.delivered),
         receiver: waybill.receiver || "",
@@ -55,6 +56,7 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
         sender: formData.sender.trim() || "-",
         destination: formData.destination.trim() || "-",
         piece_count: formData.piece_count === "" ? null : parseInt(formData.piece_count, 10),
+        weight: formData.weight === "" ? null : parseFloat(formData.weight),
         collected_by: formData.collected_by.trim() || "-",
         delivered: Boolean(formData.delivered),
         receiver: formData.receiver.trim() || "-",
@@ -136,6 +138,17 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
               min="0"
               value={formData.piece_count}
               onChange={(e) => handleChange("piece_count", e.target.value)}
+            />
+          </label>
+
+          <label>
+            Ağırlık (kg)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.weight}
+              onChange={(e) => handleChange("weight", e.target.value)}
             />
           </label>
 

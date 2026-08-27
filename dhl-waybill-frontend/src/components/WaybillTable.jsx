@@ -6,6 +6,7 @@ const COLUMNS = [
   { field: "sender", label: "Gönderici" },
   { field: "destination", label: "Ülke / Varış" },
   { field: "piece_count", label: "Parça" },
+  { field: "weight", label: "Ağırlık (kg)" },
   { field: "collected_by", label: "Toplayan" },
   { field: "delivered", label: "Teslim" },
   { field: "receiver", label: "Alıcı" },
@@ -22,6 +23,13 @@ function formatDate(dateStr) {
   } catch {
     return dateStr;
   }
+}
+
+function formatWeight(weight) {
+  if (weight === null || weight === undefined) return "-";
+  const num = parseFloat(weight);
+  if (isNaN(num)) return "-";
+  return `${num.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg`;
 }
 
 function formatCurrency(amount, symbol = "") {
@@ -136,6 +144,7 @@ function WaybillTable({
                 <td>{waybill.sender}</td>
                 <td>{waybill.destination}</td>
                 <td>{waybill.piece_count ?? "-"}</td>
+                <td>{formatWeight(waybill.weight)}</td>
                 <td>{waybill.collected_by}</td>
                 <td>
                   <span className={`delivery-badge ${waybill.delivered ? "delivery-badge-yes" : "delivery-badge-no"}`}>
