@@ -132,6 +132,9 @@ class WaybillExcelUploadView(APIView):
         "PARCA": "piece_count",
         "PARÇA SAYISI": "piece_count",
         "PARCA SAYISI": "piece_count",
+        "ADET": "piece_count",
+        "PARÇA (ADET)": "piece_count",
+        "PARCA (ADET)": "piece_count",
         "PIECE": "piece_count",
         "PIECES": "piece_count",
         "PIECE_COUNT": "piece_count",
@@ -175,23 +178,75 @@ class WaybillExcelUploadView(APIView):
 
         # euro_amount
         "EURO": "euro_amount",
+        "EURO (€)": "euro_amount",
+        "EURO(€)": "euro_amount",
+        "EURO (€": "euro_amount",
+        "EURO (EUR)": "euro_amount",
+        "EURO(EUR)": "euro_amount",
         "EURO TUTARI": "euro_amount",
+        "EURO TUTARI (€)": "euro_amount",
+        "EURO TUTAR": "euro_amount",
         "EURO_AMOUNT": "euro_amount",
+        "EUR": "euro_amount",
+        "EUR (€)": "euro_amount",
+        "EUR(€)": "euro_amount",
         "TUTAR": "euro_amount",
+        "TUTAR (€)": "euro_amount",
+        "TUTAR(€)": "euro_amount",
 
         # exchange_rate
         "KUR": "exchange_rate",
+        "KUR (₺)": "exchange_rate",
+        "KUR(₺)": "exchange_rate",
+        "KUR (TL)": "exchange_rate",
+        "KUR(TL)": "exchange_rate",
+        "KUR (TRY)": "exchange_rate",
+        "KUR(TRY)": "exchange_rate",
+        "KUR (€)": "exchange_rate",
+        "KUR(€)": "exchange_rate",
         "DÖVİZ KURU": "exchange_rate",
         "DOVIZ KURU": "exchange_rate",
+        "DÖVİZ KURU (₺)": "exchange_rate",
+        "DOVIZ KURU (₺)": "exchange_rate",
+        "DÖVİZ KURU (TL)": "exchange_rate",
+        "DOVIZ KURU (TL)": "exchange_rate",
         "EXCHANGE_RATE": "exchange_rate",
         "RATE": "exchange_rate",
+
+        # payment_amount
+        "ÖDEME TUTARI": "payment_amount",
+        "ODEME TUTARI": "payment_amount",
+        "ÖDEME TUTARI (₺)": "payment_amount",
+        "ODEME TUTARI (₺)": "payment_amount",
+        "ÖDEME TUTARI(₺)": "payment_amount",
+        "ODEME TUTARI(₺)": "payment_amount",
+        "ÖDEME TUTARI (TL)": "payment_amount",
+        "ODEME TUTARI (TL)": "payment_amount",
+        "ÖDEME TUTARI(TL)": "payment_amount",
+        "ODEME TUTARI(TL)": "payment_amount",
+        "ÖDENEN TUTAR": "payment_amount",
+        "ODENEN TUTAR": "payment_amount",
+        "ÖDENEN TUTAR (₺)": "payment_amount",
+        "ODENEN TUTAR (₺)": "payment_amount",
+        "ÖDENEN TUTAR(₺)": "payment_amount",
+        "ODENEN TUTAR(₺)": "payment_amount",
+        "ÖDENEN TUTAR (TL)": "payment_amount",
+        "ODENEN TUTAR (TL)": "payment_amount",
+        "ÖDENEN TUTAR(TL)": "payment_amount",
+        "ODENEN TUTAR(TL)": "payment_amount",
+        "TUTAR (TL)": "payment_amount",
+        "TUTAR(TL)": "payment_amount",
+        "TUTAR (₺)": "payment_amount",
+        "TUTAR(₺)": "payment_amount",
+        "PAYMENT_AMOUNT": "payment_amount",
+        "PAYMENT": "payment_amount",
     }
 
     def _normalize_header(self, header):
         """Sütun başlığını temizleyip standart büyük harfe çevirir."""
         if not header:
             return ""
-        return str(header).strip().upper()
+        return re.sub(r"\s+", " ", str(header)).strip().upper()
 
     def _normalize_text_field(self, raw_value, fallback="-"):
         if pd.isna(raw_value):
@@ -224,7 +279,9 @@ class WaybillExcelUploadView(APIView):
         if pd.isna(raw_value):
             return None
         try:
-            val_str = str(raw_value).strip().replace(" ", "")
+            val_str = str(raw_value).strip()
+            for token in ["ADET", "adet", "Adet", "PCS", "pcs", " "]:
+                val_str = val_str.replace(token, "")
             val = int(float(val_str))
             return val if val >= 0 else None
         except (ValueError, TypeError, OverflowError):
@@ -235,11 +292,20 @@ class WaybillExcelUploadView(APIView):
             return None
         try:
             val_str = str(raw_value).strip()
-            for token in ["€", "$", "TL", "tl", "EUR", "USD", " "]:
+            for token in ["€", "₺", "$", "TL", "tl", "EUR", "eur", "USD", "usd", "TRY", "try", "KG", "kg", " ", "\xa0"]:
                 val_str = val_str.replace(token, "")
-            # Türkçe virgüllü format "12,50" -> "12.50"
-            if "," in val_str and "." in val_str:
-                val_str = val_str.replace(".", "").replace(",", ".")
+            val_str = val_str.strip()
+            if not val_str:
+                return None
+            # Türkçe binlik noktalı format kontrolü: "2.542", "10.000", "1.250.000"
+            if re.match(r"^\d{1,3}(\.\d{3})+$", val_str):
+                val_str = val_str.replace(".", "")
+            # Türkçe virgüllü format "12,50" -> "12.50" veya binlik noktalı "1.234,50" -> "1234.50"
+            elif "," in val_str and "." in val_str:
+                if val_str.rfind(",") > val_str.rfind("."):
+                    val_str = val_str.replace(".", "").replace(",", ".")
+                else:
+                    val_str = val_str.replace(",", "")
             elif "," in val_str:
                 val_str = val_str.replace(",", ".")
             d = Decimal(val_str)
@@ -400,6 +466,16 @@ class WaybillExcelUploadView(APIView):
                     if rate_info:
                         exchange_rate = rate_info["rate"]
 
+                payment_amount = (
+                    self._parse_decimal(row[field_to_col["payment_amount"]], decimal_places=2)
+                    if "payment_amount" in field_to_col
+                    else None
+                )
+
+                # Eğer ödeme tutarı Excel'de boşsa, Euro * Kur üzerinden hesapla
+                if payment_amount is None and euro_amount is not None and exchange_rate is not None:
+                    payment_amount = round(euro_amount * Decimal(str(exchange_rate)), 2)
+
                 data = {
                     "waybill_number": waybill_number,
                     "shipment_date": shipment_date,
@@ -412,6 +488,7 @@ class WaybillExcelUploadView(APIView):
                     "receiver": receiver,
                     "euro_amount": euro_amount,
                     "exchange_rate": exchange_rate,
+                    "payment_amount": payment_amount,
                 }
 
                 if waybill_number in existing_numbers:
@@ -496,6 +573,7 @@ class WaybillListView(generics.ListAPIView):
             total_count=Count("id"),
             total_pieces=Sum("piece_count"),
             total_euro=Sum("euro_amount"),
+            total_weight=Sum("weight"),
             delivered_count=Count("id", filter=Q(delivered=True)),
         )
 
@@ -507,6 +585,7 @@ class WaybillListView(generics.ListAPIView):
                 "total_count": summary["total_count"] or 0,
                 "total_pieces": summary["total_pieces"] or 0,
                 "total_euro": float(summary["total_euro"] or 0),
+                "total_weight": float(summary["total_weight"] or 0),
                 "delivered_count": summary["delivered_count"] or 0,
             }
             return response

@@ -11,7 +11,8 @@ class WaybillSerializer(serializers.ModelSerializer):
     payment_amount = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,
-        read_only=True,
+        required=False,
+        allow_null=True,
     )
     is_incomplete = serializers.BooleanField(read_only=True)
 
@@ -35,7 +36,12 @@ class WaybillSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "payment_amount", "is_incomplete", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_incomplete", "created_at", "updated_at"]
+
+    def validate_payment_amount(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Ödeme tutarı 0 veya daha büyük olmalıdır.")
+        return value
 
     def validate_waybill_number(self, value):
         value = str(value).strip()

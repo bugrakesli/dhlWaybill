@@ -85,17 +85,22 @@ class Waybill(models.Model):
         verbose_name="Kur",
     )
 
+    payment_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Ödenen Tutar (TL)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    @property
-    def payment_amount(self):
-        """
-        Hesaplanan TL Tutar: Euro * Kur
-        """
-        if self.euro_amount is not None and self.exchange_rate is not None:
-            return round(float(self.euro_amount * self.exchange_rate), 2)
-        return None
+    def save(self, *args, **kwargs):
+        if self.payment_amount is None and self.euro_amount is not None and self.exchange_rate is not None:
+            self.payment_amount = round(self.euro_amount * self.exchange_rate, 2)
+        super().save(*args, **kwargs)
 
     @property
     def is_incomplete(self):
