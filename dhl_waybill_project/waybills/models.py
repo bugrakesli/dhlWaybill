@@ -118,6 +118,7 @@ class Waybill(models.Model):
             or self.euro_amount is None
             or self.exchange_rate is None
             or self.piece_count is None
+            or self.weight is None
         )
 
     class Meta:

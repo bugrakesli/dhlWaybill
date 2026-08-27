@@ -27,7 +27,9 @@ export function isWaybillIncomplete(waybill) {
     waybill.exchange_rate === null ||
     waybill.exchange_rate === undefined ||
     waybill.piece_count === null ||
-    waybill.piece_count === undefined
+    waybill.piece_count === undefined ||
+    waybill.weight === null ||
+    waybill.weight === undefined
   );
 }
 
@@ -56,6 +58,9 @@ export function getIncompleteFields(waybill) {
   }
   if (waybill.piece_count === null || waybill.piece_count === undefined) {
     missing.push("Parça");
+  }
+  if (waybill.weight === null || waybill.weight === undefined) {
+    missing.push("Ağırlık");
   }
   if (isPlaceholderText(waybill.collected_by)) {
     missing.push("Toplayan");

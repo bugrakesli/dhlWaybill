@@ -53,6 +53,7 @@ class WaybillModelTests(TestCase):
             sender="Firma",
             destination="Almanya",
             piece_count=1,
+            weight=Decimal("2.50"),
             collected_by="Kurye",
             delivered=True,
             receiver="Alici",
@@ -61,12 +62,28 @@ class WaybillModelTests(TestCase):
         )
         self.assertFalse(complete_wb.is_incomplete)
 
+        missing_weight_wb = Waybill.objects.create(
+            waybill_number="AWB_NO_WEIGHT",
+            shipment_date=date(2026, 6, 1),
+            sender="Firma",
+            destination="Almanya",
+            piece_count=1,
+            weight=None,
+            collected_by="Kurye",
+            delivered=True,
+            receiver="Alici",
+            euro_amount=Decimal("100.00"),
+            exchange_rate=Decimal("35.0000"),
+        )
+        self.assertTrue(missing_weight_wb.is_incomplete)
+
         incomplete_wb = Waybill.objects.create(
             waybill_number="AWB101",
             shipment_date=date(1900, 1, 1),
             sender="-",
             destination="-",
             piece_count=None,
+            weight=None,
             collected_by="-",
             delivered=False,
             receiver="-",
@@ -158,6 +175,28 @@ class WaybillAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["waybill_number"], "AWB1003")
+
+    def test_filter_incomplete_missing_weight(self):
+        # Yalnızca ağırlığı eksik olan bir kayıt oluşturalım
+        Waybill.objects.create(
+            waybill_number="AWB_WEIGHT_EMPTY",
+            shipment_date=date(2026, 6, 15),
+            sender="Firma C",
+            destination="Almanya",
+            piece_count=2,
+            weight=None,
+            collected_by="Kurye 3",
+            delivered=True,
+            receiver="Alıcı Z",
+            euro_amount=Decimal("150.00"),
+            exchange_rate=Decimal("35.0000"),
+        )
+        response = self.client.get("/api/waybills/?incomplete=true")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        waybill_numbers = [r["waybill_number"] for r in response.data["results"]]
+        self.assertIn("AWB_WEIGHT_EMPTY", waybill_numbers)
+        self.assertIn("AWB1003", waybill_numbers)
 
     def test_excel_upload_turkish_headers(self):
         df = pd.DataFrame([

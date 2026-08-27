@@ -64,6 +64,7 @@ def filter_waybills_queryset(request):
             | Q(euro_amount__isnull=True)
             | Q(exchange_rate__isnull=True)
             | Q(piece_count__isnull=True)
+            | Q(weight__isnull=True)
         )
 
     return queryset
