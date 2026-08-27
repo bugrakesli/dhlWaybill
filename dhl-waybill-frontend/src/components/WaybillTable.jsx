@@ -141,17 +141,17 @@ function WaybillTable({
                     )}
                   </div>
                 </td>
-                <td>{waybill.sender}</td>
-                <td>{waybill.destination}</td>
+                <td className="cell-truncate" title={waybill.sender}>{waybill.sender}</td>
+                <td className="cell-truncate" title={waybill.destination}>{waybill.destination}</td>
                 <td>{waybill.piece_count ?? "-"}</td>
                 <td>{formatWeight(waybill.weight)}</td>
-                <td>{waybill.collected_by}</td>
+                <td className="cell-truncate" title={waybill.collected_by}>{waybill.collected_by}</td>
                 <td>
                   <span className={`delivery-badge ${waybill.delivered ? "delivery-badge-yes" : "delivery-badge-no"}`}>
                     {waybill.delivered ? "Evet" : "Hayır"}
                   </span>
                 </td>
-                <td>{waybill.receiver}</td>
+                <td className="cell-truncate" title={waybill.receiver}>{waybill.receiver}</td>
                 <td>{formatCurrency(waybill.euro_amount, "€")}</td>
                 <td>{formatRate(waybill.exchange_rate)}</td>
                 <td><strong>{formatCurrency(waybill.payment_amount, "₺")}</strong></td>
