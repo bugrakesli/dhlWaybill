@@ -7,23 +7,41 @@ import apiClient from "../api/axiosConfig";
 function EditWaybillModal({ waybill, onClose, onSaved }) {
   const [formData, setFormData] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
+  const [rateInfo, setRateInfo] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (waybill) {
       setFormData({
         waybill_number: waybill.waybill_number || "",
-        shipment_date: waybill.shipment_date && waybill.shipment_date !== "1900-01-01" ? waybill.shipment_date : "",
+        shipment_date:
+          waybill.shipment_date && waybill.shipment_date !== "1900-01-01"
+            ? waybill.shipment_date
+            : "",
         sender: waybill.sender || "",
         destination: waybill.destination || "",
-        piece_count: waybill.piece_count !== null && waybill.piece_count !== undefined ? waybill.piece_count : "",
-        weight: waybill.weight !== null && waybill.weight !== undefined ? waybill.weight : "",
+        piece_count:
+          waybill.piece_count !== null && waybill.piece_count !== undefined
+            ? waybill.piece_count
+            : "",
+        weight:
+          waybill.weight !== null && waybill.weight !== undefined
+            ? waybill.weight
+            : "",
         collected_by: waybill.collected_by || "",
         delivered: Boolean(waybill.delivered),
         receiver: waybill.receiver || "",
-        euro_amount: waybill.euro_amount !== null && waybill.euro_amount !== undefined ? waybill.euro_amount : "",
-        exchange_rate: waybill.exchange_rate !== null && waybill.exchange_rate !== undefined ? waybill.exchange_rate : "",
+        euro_amount:
+          waybill.euro_amount !== null && waybill.euro_amount !== undefined
+            ? waybill.euro_amount
+            : "",
+        exchange_rate:
+          waybill.exchange_rate !== null && waybill.exchange_rate !== undefined
+            ? waybill.exchange_rate
+            : "",
       });
+      setRateInfo(null);
       setError(null);
     }
   }, [waybill]);
@@ -36,11 +54,52 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleFetchRate = async () => {
+    if (!formData.shipment_date) {
+      setError("Döviz kurunu otomatik çekmek için lütfen önce geçerli bir tarih seçin.");
+      return;
+    }
+
+    setIsFetchingRate(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.get("waybills/exchange-rate/", {
+        params: {
+          date: formData.shipment_date,
+          currency: "EUR",
+        },
+      });
+
+      const data = response.data;
+      if (data && data.rate) {
+        setFormData((prev) => ({
+          ...prev,
+          exchange_rate: data.rate,
+        }));
+        setRateInfo({
+          source: data.source,
+          actualDate: data.actual_date,
+        });
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail || "Döviz kuru servisine ulaşılamadı.";
+      setError(detail);
+    } finally {
+      setIsFetchingRate(false);
+    }
+  };
+
   const calculatedPayment = (() => {
     const euro = parseFloat(formData.euro_amount);
     const rate = parseFloat(formData.exchange_rate);
     if (!isNaN(euro) && !isNaN(rate) && euro >= 0 && rate >= 0) {
-      return (euro * rate).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
+      return (
+        (euro * rate).toLocaleString("tr-TR", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }) + " ₺"
+      );
     }
     return "-";
   })();
@@ -71,7 +130,9 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
     } catch (err) {
       const message =
         err.response?.data?.detail ||
-        (err.response?.data ? JSON.stringify(err.response.data) : "Güncelleme sırasında bir hata oluştu.");
+        (err.response?.data
+          ? JSON.stringify(err.response.data)
+          : "Güncelleme sırasında bir hata oluştu.");
       setError(message);
     } finally {
       setIsSaving(false);
@@ -100,7 +161,10 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
               type="date"
               lang="tr"
               value={formData.shipment_date}
-              onChange={(e) => handleChange("shipment_date", e.target.value)}
+              onChange={(e) => {
+                handleChange("shipment_date", e.target.value);
+                setRateInfo(null);
+              }}
             />
           </label>
 
@@ -185,16 +249,37 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
             />
           </label>
 
-          <label>
-            Döviz Kuru
-            <input
-              type="number"
-              min="0"
-              step="0.0001"
-              value={formData.exchange_rate}
-              onChange={(e) => handleChange("exchange_rate", e.target.value)}
-            />
-          </label>
+          <div className="rate-field-group">
+            <label>
+              <div className="rate-label-header">
+                <span>Döviz Kuru</span>
+                <button
+                  type="button"
+                  className="fetch-rate-btn"
+                  onClick={handleFetchRate}
+                  disabled={isFetchingRate || !formData.shipment_date}
+                  title="Seçili tarihin TCMB resmi kurunu otomatik getir"
+                >
+                  {isFetchingRate ? "Çekiliyor..." : "⚡ Kuru Getir"}
+                </button>
+              </div>
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                value={formData.exchange_rate}
+                onChange={(e) => {
+                  handleChange("exchange_rate", e.target.value);
+                  setRateInfo(null);
+                }}
+              />
+            </label>
+            {rateInfo && (
+              <span className="rate-source-badge">
+                ✓ {rateInfo.source} Bülteni ({rateInfo.actualDate})
+              </span>
+            )}
+          </div>
 
           <div className="computed-preview-box">
             <span>Hesaplanan Tutar (TL):</span>
@@ -217,4 +302,4 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
   );
 }
 
-export default EditWaybillModal;
+export default EditWaybillModal;

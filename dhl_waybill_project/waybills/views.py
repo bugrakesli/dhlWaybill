@@ -16,6 +16,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from .models import Waybill
 from .serializers import WaybillSerializer, WaybillExcelUploadSerializer
 from .pagination import WaybillPagination
+from .exchange_rates import get_exchange_rate
 
 PLACEHOLDER_DATE = date(1900, 1, 1)
 PLACEHOLDER_TEXT = "-"
@@ -393,6 +394,12 @@ class WaybillExcelUploadView(APIView):
                     else None
                 )
 
+                # Eğer kur Excel'de boşsa ve tarih geçerliyse TCMB/önbellekten otomatik çek
+                if exchange_rate is None and shipment_date and shipment_date != PLACEHOLDER_DATE:
+                    rate_info = get_exchange_rate(shipment_date, currency="EUR")
+                    if rate_info:
+                        exchange_rate = rate_info["rate"]
+
                 data = {
                     "waybill_number": waybill_number,
                     "shipment_date": shipment_date,
@@ -634,3 +641,51 @@ class WaybillDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     queryset = Waybill.objects.all()
     serializer_class = WaybillSerializer
+
+
+# --------------------------------------------------------------------------
+# 6) DÖVİZ KURU ENDPOINT'İ (TCMB / ÖNBELLEK)
+# --------------------------------------------------------------------------
+
+class ExchangeRateView(APIView):
+    """
+    GET /api/waybills/exchange-rate/?date=2026-06-15&currency=EUR
+
+    Verilen tarihe ait döviz kurunu TCMB veya önbellekten döner.
+    """
+
+    def get(self, request, *args, **kwargs):
+        date_str = request.query_params.get("date")
+        currency = request.query_params.get("currency", "EUR").strip().upper()
+
+        if not date_str:
+            return Response(
+                {"detail": "Tarih parametresi ('date') zorunludur (Format: YYYY-MM-DD)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_date = parse_date(date_str)
+        if not target_date or target_date == PLACEHOLDER_DATE:
+            return Response(
+                {"detail": "Geçersiz tarih formatı. YYYY-MM-DD formatında olmalıdır."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        rate_info = get_exchange_rate(target_date, currency=currency)
+        if not rate_info:
+            return Response(
+                {"detail": f"{target_date} tarihi için {currency} kuru bulunamadı."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "target_date": rate_info["target_date"].strftime("%Y-%m-%d"),
+                "actual_date": rate_info["actual_date"].strftime("%Y-%m-%d"),
+                "currency": rate_info["currency"],
+                "rate": float(rate_info["rate"]),
+                "source": rate_info["source"],
+            },
+            status=status.HTTP_200_OK,
+        )
+

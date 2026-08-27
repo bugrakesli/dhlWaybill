@@ -792,6 +792,47 @@ td strong {
   color: var(--success);
 }
 
+.rate-field-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.rate-label-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.15rem;
+}
+
+.fetch-rate-btn {
+  background: rgba(235, 179, 8, 0.15);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fetch-rate-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #0f1115;
+}
+
+.fetch-rate-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rate-source-badge {
+  font-size: 0.7rem;
+  color: var(--success);
+  margin-top: 0.25rem;
+  display: block;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

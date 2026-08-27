@@ -214,3 +214,75 @@ class WaybillAPITests(TestCase):
             response["Content-Type"],
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+
+class ExchangeRateTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_exchange_rate_cache_and_api(self):
+        from .models import ExchangeRateCache
+
+        # Manuel önbellek kaydı oluştur
+        ExchangeRateCache.objects.create(
+            rate_date=date(2026, 6, 15),
+            actual_bulletin_date=date(2026, 6, 15),
+            currency="EUR",
+            rate=Decimal("36.5000"),
+            source="TCMB",
+        )
+
+        response = self.client.get("/api/waybills/exchange-rate/?date=2026-06-15&currency=EUR")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["rate"], 36.5)
+        self.assertEqual(response.data["currency"], "EUR")
+        self.assertEqual(response.data["source"], "TCMB")
+
+    def test_exchange_rate_missing_date_param(self):
+        response = self.client.get("/api/waybills/exchange-rate/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_excel_upload_auto_fills_exchange_rate(self):
+        from .models import ExchangeRateCache
+
+        ExchangeRateCache.objects.create(
+            rate_date=date(2026, 7, 10),
+            actual_bulletin_date=date(2026, 7, 10),
+            currency="EUR",
+            rate=Decimal("37.1234"),
+            source="TCMB",
+        )
+
+        df = pd.DataFrame([
+            {
+                "TARİH": "2026-07-10",
+                "AWB": "AWB_AUTO_RATE_1",
+                "GÖNDERİCİ": "Test Firma",
+                "ÜLKE": "Almanya",
+                "PARÇA": 1,
+                "AĞIRLIK": "5",
+                "EURO": "100.00",
+                "KUR": "",  # Kur boş bırakıldı -> otomatik dolmalı
+            }
+        ])
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False, engine="openpyxl")
+        buffer.seek(0)
+
+        uploaded_file = SimpleUploadedFile(
+            "test_auto_rate.xlsx",
+            buffer.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        response = self.client.post(
+            "/api/waybills/upload/",
+            {"file": uploaded_file},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        wb = Waybill.objects.get(waybill_number="AWB_AUTO_RATE_1")
+        self.assertEqual(wb.exchange_rate, Decimal("37.1234"))
+        self.assertEqual(wb.payment_amount, 3712.34)
+

@@ -125,3 +125,43 @@ class Waybill(models.Model):
 
     def __str__(self):
         return f"{self.waybill_number} ({self.shipment_date})"
+
+
+class ExchangeRateCache(models.Model):
+    """
+    TCMB veya yedek servislerden çekilen döviz kurlarını saklayan önbellek modeli.
+    Tekrar eden tarih sorgularının anında veritabanından dönmesini sağlar.
+    """
+    rate_date = models.DateField(
+        db_index=True,
+        verbose_name="Kur Tarihi",
+    )
+    actual_bulletin_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Bülten Tarihi",
+    )
+    currency = models.CharField(
+        max_length=10,
+        default="EUR",
+        verbose_name="Para Birimi",
+    )
+    rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        verbose_name="Döviz Satış Kuru",
+    )
+    source = models.CharField(
+        max_length=50,
+        default="TCMB",
+        verbose_name="Kaynak",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["rate_date", "currency"]
+        verbose_name = "Kur Önbelleği"
+        verbose_name_plural = "Kur Önbellekleri"
+
+    def __str__(self):
+        return f"{self.currency} / TRY - {self.rate_date}: {self.rate} ({self.source})"
