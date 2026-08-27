@@ -1,4 +1,5 @@
 import { isWaybillIncomplete, getIncompleteFields } from "../utils/incompleteHelpers";
+import Pagination from "./Pagination";
 
 const COLUMNS = [
   { field: "shipment_date", label: "Tarih" },
@@ -51,6 +52,8 @@ function WaybillTable({
   isLoading,
   pagination,
   onPageChange,
+  pageSize = 25,
+  onPageSizeChange,
   sortField,
   sortDirection,
   onSort,
@@ -179,23 +182,14 @@ function WaybillTable({
         </tbody>
       </table>
 
-      <div className="pagination-controls">
-        <button
-          onClick={() => onPageChange(pagination.currentPage - 1)}
-          disabled={!pagination.previous}
-        >
-          ← Önceki
-        </button>
-        <span>
-          Sayfa {pagination.currentPage} — Toplam {pagination.count} kayıt
-        </span>
-        <button
-          onClick={() => onPageChange(pagination.currentPage + 1)}
-          disabled={!pagination.next}
-        >
-          Sonraki →
-        </button>
-      </div>
+      <Pagination
+        currentPage={pagination?.currentPage || 1}
+        totalCount={pagination?.count || 0}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

@@ -110,11 +110,24 @@ class WaybillAPITests(TestCase):
         response = self.client.get("/api/waybills/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["total_pages"], 1)
+        self.assertEqual(response.data["current_page"], 1)
+        self.assertEqual(response.data["page_size"], 25)
         summary = response.data["summary"]
         self.assertEqual(summary["total_count"], 3)
         self.assertEqual(summary["total_pieces"], 7)
         self.assertEqual(summary["total_euro"], 300.0)
         self.assertEqual(summary["delivered_count"], 1)
+
+    def test_custom_page_size_pagination(self):
+        response = self.client.get("/api/waybills/?page=1&page_size=2")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["total_pages"], 2)
+        self.assertEqual(response.data["current_page"], 1)
+        self.assertEqual(response.data["page_size"], 2)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertIsNotNone(response.data["next"])
 
     def test_filter_delivered(self):
         response = self.client.get("/api/waybills/?delivered=true")

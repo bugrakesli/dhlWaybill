@@ -33,11 +33,14 @@ function App() {
   const [waybills, setWaybills] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [pagination, setPagination] = useState({
     count: 0,
     next: null,
     previous: null,
     currentPage: 1,
+    totalPages: 1,
+    pageSize: 25,
   });
   const [summary, setSummary] = useState(null);
 
@@ -78,6 +81,11 @@ function App() {
     setCurrentPage(1);
   };
 
+  const handlePageSizeChange = (newPageSize) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1);
+  };
+
   const fetchWaybills = useCallback(async () => {
     setIsLoading(true);
 
@@ -97,6 +105,7 @@ function App() {
           search: searchQuery || undefined,
           incomplete: isModeOnlyIncomplete ? "true" : undefined,
           page: currentPage,
+          page_size: pageSize,
         },
       });
 
@@ -105,7 +114,9 @@ function App() {
         count: response.data.count,
         next: response.data.next,
         previous: response.data.previous,
-        currentPage: currentPage,
+        currentPage: response.data.current_page || currentPage,
+        totalPages: response.data.total_pages || Math.ceil((response.data.count || 0) / pageSize) || 1,
+        pageSize: response.data.page_size || pageSize,
       });
       setSummary(response.data.summary);
     } catch (error) {
@@ -115,17 +126,17 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, incompleteMode]);
+  }, [activeFilters, currentPage, pageSize, sortField, sortDirection, searchQuery, incompleteMode]);
 
   useEffect(() => {
     fetchWaybills();
   }, [fetchWaybills]);
 
-  // Filtre/sayfa/arama değiştiğinde ekrandaki kayıt kümesi değişir --
+  // Filtre/sayfa/arama/sayfa boyutu değiştiğinde ekrandaki kayıt kümesi değişir --
   // eski sayfadan kalan seçim başka kayıtları silmeye yol açmasın diye temizle.
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeFilters, currentPage, sortField, sortDirection, searchQuery, incompleteMode]);
+  }, [activeFilters, currentPage, pageSize, sortField, sortDirection, searchQuery, incompleteMode]);
 
   const handleApplyFilter = () => {
     setCurrentPage(1);
@@ -276,6 +287,8 @@ function App() {
         isLoading={isLoading}
         pagination={pagination}
         onPageChange={setCurrentPage}
+        pageSize={pageSize}
+        onPageSizeChange={handlePageSizeChange}
         sortField={sortField}
         sortDirection={sortDirection}
         onSort={handleSort}
