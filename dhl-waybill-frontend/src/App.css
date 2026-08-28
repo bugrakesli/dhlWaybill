@@ -34,6 +34,7 @@
 .upload-container,
 .date-filter-container,
 .status-filter-container,
+.territory-filter-container,
 .summary-bar,
 .table-container,
 .target-calculator-panel,
@@ -46,7 +47,8 @@
 
 .upload-container,
 .date-filter-container,
-.status-filter-container {
+.status-filter-container,
+.territory-filter-container {
   padding: 1.1rem 1.4rem;
   margin-bottom: 1.25rem;
   display: flex;
@@ -210,6 +212,92 @@ select:focus {
   background: var(--chip-color, var(--accent));
   color: #0f1115;
   font-weight: 700;
+}
+
+/* ==========================================================================
+   Sales Territory (BAST) Filtresi
+   ========================================================================== */
+
+.territory-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.territory-icon {
+  font-size: 1.1rem;
+}
+
+.territory-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  position: relative;
+}
+
+.territory-select {
+  background-color: var(--surface-2);
+  color: var(--text-h);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 2.2rem 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-width: 260px;
+  color-scheme: dark;
+  transition: all 0.15s ease;
+}
+
+.territory-select:hover {
+  border-color: var(--text);
+}
+
+.territory-select:focus {
+  outline: none;
+  border-color: var(--info);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.territory-select-active {
+  border-color: var(--info);
+  background-color: rgba(56, 189, 248, 0.12);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Dropdown menü seçeneklerinin (option) rengini net ve yüksek kontrastlı yap */
+.territory-select option {
+  background-color: #1b1d24 !important;
+  color: #f3f4f6 !important;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.88rem;
+}
+
+.territory-clear-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.territory-clear-btn:hover {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
 }
 
 /* ==========================================================================
@@ -388,6 +476,34 @@ select:focus {
   background: var(--surface-2);
   color: var(--text);
   cursor: not-allowed;
+}
+
+.clear-all-button {
+  background: transparent;
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  padding: 0 1.2rem;
+  height: 100%;
+  min-height: 3rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.clear-all-button:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+}
+
+.clear-all-button:disabled {
+  border-color: var(--border);
+  color: var(--text);
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* ==========================================================================

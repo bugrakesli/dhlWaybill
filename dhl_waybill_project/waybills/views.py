@@ -67,6 +67,20 @@ def filter_waybills_queryset(request):
             | Q(weight__isnull=True)
         )
 
+    # Billing Account Sales Territory filtresi
+    territory_param = request.query_params.get("territory") or request.query_params.get("billing_account_sales_territory")
+    if territory_param:
+        territory_clean = str(territory_param).strip()
+        territory_lower = territory_clean.lower()
+        if territory_lower in ["none", "empty", "__empty__", "bast_olmayanlar", "null"]:
+            queryset = queryset.filter(
+                Q(billing_account_sales_territory="")
+                | Q(billing_account_sales_territory__isnull=True)
+                | Q(billing_account_sales_territory="-")
+            )
+        elif territory_lower not in ["all", "tumu", "tümü", ""]:
+            queryset = queryset.filter(billing_account_sales_territory__iexact=territory_clean)
+
     return queryset
 
 
@@ -89,6 +103,10 @@ class WaybillExcelUploadView(APIView):
     COLUMN_ALIASES = {
         # waybill_number (ZORUNLU)
         "AWB": "waybill_number",
+        "AWB NUMBER": "waybill_number",
+        "AWB NO": "waybill_number",
+        "AWB NO.": "waybill_number",
+        "AWB_NUMBER": "waybill_number",
         "KONŞİMENTO NO": "waybill_number",
         "KONSIMENTO NO": "waybill_number",
         "KONŞİMENTO": "waybill_number",
@@ -104,6 +122,11 @@ class WaybillExcelUploadView(APIView):
         "SEVKIYAT TARIHI": "shipment_date",
         "SHIPMENT_DATE": "shipment_date",
         "DATE": "shipment_date",
+        "SHIPMENT PICK UP DATE": "shipment_date",
+        "SHIPMENT PICKUP DATE": "shipment_date",
+        "PICK UP DATE": "shipment_date",
+        "PICKUP DATE": "shipment_date",
+        "INVOICE DATE": "shipment_date",
 
         # sender
         "GÖNDERİCİ FİRMA/ŞAHIS": "sender",
@@ -113,6 +136,9 @@ class WaybillExcelUploadView(APIView):
         "GÖNDERİCİ": "sender",
         "GONDERICI": "sender",
         "SENDER": "sender",
+        "CONSIGNOR NAME": "sender",
+        "CONSIGNOR CONTACT NAME": "sender",
+        "CONSIGNOR": "sender",
 
         # destination
         "ÜLKE-VARIŞ NOKTASI": "destination",
@@ -127,6 +153,8 @@ class WaybillExcelUploadView(APIView):
         "VARIS NOKTASI": "destination",
         "DESTINATION": "destination",
         "COUNTRY": "destination",
+        "DESTINATION COUNTRY CODE": "destination",
+        "DESTINATION COUNTRY": "destination",
 
         # piece_count
         "PARÇA": "piece_count",
@@ -153,6 +181,10 @@ class WaybillExcelUploadView(APIView):
         "WEIGHT (KG)": "weight",
         "WEIGHT(KG)": "weight",
         "KG": "weight",
+        "BILLED WEIGHT (KG)": "weight",
+        "BILLED WEIGHT(KG)": "weight",
+        "BILLED WEIGHT": "weight",
+        "BILLED_WEIGHT": "weight",
 
         # collected_by
         "TOPLAYAN": "collected_by",
@@ -176,6 +208,17 @@ class WaybillExcelUploadView(APIView):
         "ALICI FİRMA / ŞAHIS": "receiver",
         "ALICI": "receiver",
         "RECEIVER": "receiver",
+        "CONSIGNEE NAME": "receiver",
+        "CONSIGNEE CONTACT NAME": "receiver",
+        "CONSIGNEE": "receiver",
+
+        # billing_account_sales_territory
+        "BILLING ACCOUNT SALES TERRITORY": "billing_account_sales_territory",
+        "BILLING_ACCOUNT_SALES_TERRITORY": "billing_account_sales_territory",
+        "SALES TERRITORY": "billing_account_sales_territory",
+        "SALES_TERRITORY": "billing_account_sales_territory",
+        "TERRITORY": "billing_account_sales_territory",
+        "BAST": "billing_account_sales_territory",
 
         # euro_amount
         "EURO": "euro_amount",
@@ -194,6 +237,11 @@ class WaybillExcelUploadView(APIView):
         "TUTAR": "euro_amount",
         "TUTAR (€)": "euro_amount",
         "TUTAR(€)": "euro_amount",
+        "TOTAL REVENUE (EUR@BLFX)": "euro_amount",
+        "TOTAL REVENUE (EUR)": "euro_amount",
+        "BASE REVENUE (EUR@BLFX)": "euro_amount",
+        "BASE REVENUE (EUR)": "euro_amount",
+        "REVENUE (EUR)": "euro_amount",
 
         # exchange_rate
         "KUR": "exchange_rate",
@@ -241,6 +289,11 @@ class WaybillExcelUploadView(APIView):
         "TUTAR(₺)": "payment_amount",
         "PAYMENT_AMOUNT": "payment_amount",
         "PAYMENT": "payment_amount",
+        "TOTAL REVENUE (LCY)": "payment_amount",
+        "BASE REVENUE (LCY)": "payment_amount",
+        "TOTAL REVENUE (TL)": "payment_amount",
+        "TOTAL REVENUE (TRY)": "payment_amount",
+        "TOTAL REVENUE (₺)": "payment_amount",
     }
 
     def _normalize_header(self, header):
@@ -365,14 +418,12 @@ class WaybillExcelUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Excel sütunlarını model alanlarına eşle
+        # Excel sütunlarını model alanlarına eşle (COLUMN_ALIASES öncelik sırasına göre)
+        col_map = {self._normalize_header(col): col for col in df.columns}
         field_to_col = {}
-        for col in df.columns:
-            norm_col = self._normalize_header(col)
-            if norm_col in self.COLUMN_ALIASES:
-                target_field = self.COLUMN_ALIASES[norm_col]
-                if target_field not in field_to_col:
-                    field_to_col[target_field] = col
+        for alias, target_field in self.COLUMN_ALIASES.items():
+            if target_field not in field_to_col and alias in col_map:
+                field_to_col[target_field] = col_map[alias]
 
         if "waybill_number" not in field_to_col:
             return Response(
@@ -492,6 +543,12 @@ class WaybillExcelUploadView(APIView):
                     "payment_amount": payment_amount,
                 }
 
+                if "billing_account_sales_territory" in field_to_col:
+                    bast_val = self._normalize_text_field(
+                        row[field_to_col["billing_account_sales_territory"]], fallback=""
+                    )
+                    data["billing_account_sales_territory"] = bast_val
+
                 if waybill_number in existing_numbers:
                     to_update.append(data)
                 else:
@@ -548,7 +605,14 @@ class WaybillListView(generics.ListAPIView):
     serializer_class = WaybillSerializer
     pagination_class = WaybillPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["waybill_number", "sender", "receiver", "destination", "collected_by"]
+    search_fields = [
+        "waybill_number",
+        "sender",
+        "receiver",
+        "destination",
+        "collected_by",
+        "billing_account_sales_territory",
+    ]
     ordering_fields = [
         "waybill_number",
         "shipment_date",
@@ -559,6 +623,7 @@ class WaybillListView(generics.ListAPIView):
         "collected_by",
         "delivered",
         "receiver",
+        "billing_account_sales_territory",
         "euro_amount",
         "exchange_rate",
     ]
@@ -708,6 +773,24 @@ class WaybillBulkDeleteView(APIView):
         )
 
 
+class WaybillClearAllView(APIView):
+    """
+    POST /api/waybills/clear-all/
+
+    Veritabanındaki TÜM konşimento (Waybill) kayıtlarını tamamen siler/sıfırlar (truncate/drop table dengi).
+    """
+
+    def post(self, request, *args, **kwargs):
+        deleted_count, _ = Waybill.objects.all().delete()
+        return Response(
+            {
+                "detail": "Tüm konşimento kayıtları başarıyla silindi.",
+                "deleted": deleted_count,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 # --------------------------------------------------------------------------
 # 5) TEKİL KAYIT: GÖRÜNTÜLEME, GÜNCELLEME, SİLME
 # --------------------------------------------------------------------------
@@ -768,4 +851,26 @@ class ExchangeRateView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+# --------------------------------------------------------------------------
+# 7) BAST (SALES TERRITORY) LİSTESİ ENDPOINT'İ
+# --------------------------------------------------------------------------
+
+class WaybillTerritoryListView(APIView):
+    """
+    GET /api/waybills/territories/
+
+    Veritabanında kayıtlı tüm benzersiz Billing Account Sales Territory değerlerini döner.
+    """
+
+    def get(self, request, *args, **kwargs):
+        territories = (
+            Waybill.objects.exclude(billing_account_sales_territory__in=["", "-"])
+            .exclude(billing_account_sales_territory__isnull=True)
+            .values_list("billing_account_sales_territory", flat=True)
+            .distinct()
+            .order_by("billing_account_sales_territory")
+        )
+        return Response({"territories": list(territories)}, status=status.HTTP_200_OK)
 

@@ -67,6 +67,14 @@ class Waybill(models.Model):
         verbose_name="Alıcı Firma/Şahıs",
     )
 
+    billing_account_sales_territory = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name="Billing Account Sales Territory",
+    )
+
     euro_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,

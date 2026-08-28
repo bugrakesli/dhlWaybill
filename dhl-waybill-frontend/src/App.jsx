@@ -5,6 +5,7 @@ import WaybillUpload from "./components/WaybillUpload";
 import WaybillTable from "./components/WaybillTable";
 import DateRangeFilter from "./components/DateRangeFilter";
 import StatusFilter from "./components/StatusFilter";
+import TerritoryFilter from "./components/TerritoryFilter";
 import SummaryBar from "./components/SummaryBar";
 import SearchBar from "./components/SearchBar";
 import ExportButton from "./components/ExportButton";
@@ -22,11 +23,14 @@ function App() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [deliveredFilter, setDeliveredFilter] = useState("all");
+  const [territoryFilter, setTerritoryFilter] = useState("");
+  const [territories, setTerritories] = useState([]);
 
   const [activeFilters, setActiveFilters] = useState({
     startDate: "",
     endDate: "",
     delivered: "all",
+    territory: "",
     incompleteMode: 0,
   });
 
@@ -51,6 +55,9 @@ function App() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
 
   const handleSearchChange = useCallback((query) => {
     setSearchQuery((prev) => {
@@ -86,6 +93,21 @@ function App() {
     setCurrentPage(1);
   };
 
+  const fetchTerritories = useCallback(async () => {
+    try {
+      const response = await apiClient.get("waybills/territories/");
+      if (response.data && Array.isArray(response.data.territories)) {
+        setTerritories(response.data.territories);
+      }
+    } catch (error) {
+      console.error("Territory listesi alınamadı:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTerritories();
+  }, [fetchTerritories]);
+
   const fetchWaybills = useCallback(async () => {
     setIsLoading(true);
 
@@ -100,6 +122,10 @@ function App() {
           delivered:
             activeFilters.delivered && activeFilters.delivered !== "all"
               ? activeFilters.delivered
+              : undefined,
+          territory:
+            activeFilters.territory && activeFilters.territory !== ""
+              ? activeFilters.territory
               : undefined,
           ordering: sortDirection === "desc" ? `-${sortField}` : sortField,
           search: searchQuery || undefined,
@@ -167,12 +193,23 @@ function App() {
     }));
   };
 
+  const handleSelectTerritory = (val) => {
+    setTerritoryFilter(val);
+    setCurrentPage(1);
+    setActiveFilters((prev) => ({
+      ...prev,
+      territory: val,
+    }));
+  };
+
   const handleUploadSuccess = () => {
     fetchWaybills();
+    fetchTerritories();
   };
 
   const handleEditSaved = () => {
     fetchWaybills();
+    fetchTerritories();
   };
 
   const handleDeleteConfirm = async () => {
@@ -183,6 +220,7 @@ function App() {
       await apiClient.delete(`waybills/${deletingWaybill.id}/`);
       setDeletingWaybill(null);
       fetchWaybills();
+      fetchTerritories();
     } catch (error) {
       console.error("Silme hatası:", error);
     } finally {
@@ -216,10 +254,27 @@ function App() {
       setSelectedIds([]);
       setIsBulkDeleteConfirmOpen(false);
       fetchWaybills();
+      fetchTerritories();
     } catch (error) {
       console.error("Toplu silme hatası:", error);
     } finally {
       setIsBulkDeleting(false);
+    }
+  };
+
+  const handleClearAllConfirm = async () => {
+    setIsClearingAll(true);
+    try {
+      await apiClient.post("waybills/clear-all/");
+      setSelectedIds([]);
+      setIsClearAllConfirmOpen(false);
+      setCurrentPage(1);
+      fetchWaybills();
+      fetchTerritories();
+    } catch (error) {
+      console.error("Tüm kayıtları silme hatası:", error);
+    } finally {
+      setIsClearingAll(false);
     }
   };
 
@@ -268,6 +323,12 @@ function App() {
         onSelectDelivered={handleSelectDelivered}
       />
 
+      <TerritoryFilter
+        territories={territories}
+        selectedTerritory={territoryFilter}
+        onSelectTerritory={handleSelectTerritory}
+      />
+
       <div className="summary-and-export">
         <SummaryBar summary={summary} isLoading={isLoading} />
         <ExportButton activeFilters={activeFilters} />
@@ -279,6 +340,15 @@ function App() {
           onClick={() => setIsBulkDeleteConfirmOpen(true)}
         >
           🗑️ Seçilenleri Sil {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
+        </button>
+        <button
+          type="button"
+          className="clear-all-button"
+          disabled={pagination.count === 0}
+          onClick={() => setIsClearAllConfirmOpen(true)}
+          title="Veritabanındaki tüm konşimento kayıtlarını kalıcı olarak siler"
+        >
+          💣 Tüm Listeyi Temizle
         </button>
       </div>
 
@@ -326,6 +396,15 @@ function App() {
         onCancel={() => setIsBulkDeleteConfirmOpen(false)}
         onConfirm={handleBulkDeleteConfirm}
         isDeleting={isBulkDeleting}
+      />
+
+      <DeleteConfirmDialog
+        isOpen={isClearAllConfirmOpen}
+        title="Tüm Listeyi Temizle (Veritabanını Sıfırla)"
+        message={`DİKKAT: Veritabanındaki TÜM (${pagination.count}) konşimento kaydı kalıcı olarak silinecektir (Drop/Truncate dengi). Bu işlem geri alınamaz. Devam etmek istediğinize emin misiniz?`}
+        onCancel={() => setIsClearAllConfirmOpen(false)}
+        onConfirm={handleClearAllConfirm}
+        isDeleting={isClearingAll}
       />
     </div>
   );

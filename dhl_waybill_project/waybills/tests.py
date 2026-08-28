@@ -485,5 +485,120 @@ class ExchangeRateTests(TestCase):
         wb2 = Waybill.objects.get(waybill_number="AWB_CALCULATED_PAYMENT_2")
         self.assertEqual(wb2.payment_amount, Decimal("3500.00"))
 
+    def test_excel_upload_dhl_billing_headers(self):
+        df = pd.DataFrame([
+            {
+                "Relative Time Code": "W12",
+                "Billing Year": 2026,
+                "Billing Cycle": 1,
+                "Main Product Category Code": "EXP",
+                "Doc Category": "DOX",
+                "Origin Country Code": "TR",
+                "Destination Country Code": "DE",
+                "Billing Account VAT Number": "1234567890",
+                "Billing Account Number": "987654321",
+                "Billing Account Name": "Test Account",
+                "Billing Account Sales Territory": "IST",
+                "Consignee Name": "Sample Receiver Ltd",
+                "Consignee Contact Name": "John Doe",
+                "Consignor Name": "Sample Sender A.S.",
+                "Consignor Contact Name": "Jane Doe",
+                "Invoice Number": "INV-2026-001",
+                "Invoice Date": "2026-08-10",
+                "Shipment Pick Up Date": "2026-08-05",
+                "AWB Number": "AWB_DHL_001",
+                "Billed Weight (Kg)": "5.5",
+                "Total Revenue (EUR@BLFX)": "45.00",
+                "Total Revenue (LCY)": "1650.00",
+                "Base Revenue (EUR@BLFX)": "40.00",
+                "Base Revenue (LCY)": "1500.00",
+            }
+        ])
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False, engine="openpyxl")
+        buffer.seek(0)
+
+        uploaded_file = SimpleUploadedFile(
+            "test_dhl_billing.xlsx",
+            buffer.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        response = self.client.post(
+            "/api/waybills/upload/",
+            {"file": uploaded_file},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["created"], 1)
+
+        wb = Waybill.objects.get(waybill_number="AWB_DHL_001")
+        self.assertEqual(wb.sender, "Sample Sender A.S.")
+        self.assertEqual(wb.receiver, "Sample Receiver Ltd")
+        self.assertEqual(wb.destination, "DE")
+        self.assertEqual(str(wb.shipment_date), "2026-08-05")
+        self.assertEqual(wb.weight, Decimal("5.50"))
+        self.assertEqual(wb.euro_amount, Decimal("45.00"))
+        self.assertEqual(wb.payment_amount, Decimal("1650.00"))
+        self.assertEqual(wb.billing_account_sales_territory, "IST")
+
+    def test_territory_filtering_and_endpoint(self):
+        Waybill.objects.create(
+            waybill_number="AWB_BR1_1",
+            shipment_date="2026-08-01",
+            billing_account_sales_territory="BR1",
+        )
+        Waybill.objects.create(
+            waybill_number="AWB_BR1_2",
+            shipment_date="2026-08-02",
+            billing_account_sales_territory="BR1",
+        )
+        Waybill.objects.create(
+            waybill_number="AWB_IP1_1",
+            shipment_date="2026-08-03",
+            billing_account_sales_territory="IP1",
+        )
+        Waybill.objects.create(
+            waybill_number="AWB_NO_BAST",
+            shipment_date="2026-08-04",
+            billing_account_sales_territory="",
+        )
+
+        # 1. Distinct territories endpoint
+        resp_territories = self.client.get("/api/waybills/territories/")
+        self.assertEqual(resp_territories.status_code, status.HTTP_200_OK)
+        self.assertIn("BR1", resp_territories.data["territories"])
+        self.assertIn("IP1", resp_territories.data["territories"])
+        self.assertNotIn("", resp_territories.data["territories"])
+
+        # 2. Filter by BR1
+        resp_br1 = self.client.get("/api/waybills/?territory=BR1")
+        self.assertEqual(resp_br1.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_br1.data["count"], 2)
+
+        # 3. Filter by IP1
+        resp_ip1 = self.client.get("/api/waybills/?territory=IP1")
+        self.assertEqual(resp_ip1.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_ip1.data["count"], 1)
+
+        # 4. Filter by None / BAST Olmayanlar
+        resp_none = self.client.get("/api/waybills/?territory=none")
+        self.assertEqual(resp_none.status_code, status.HTTP_200_OK)
+        results = [r["waybill_number"] for r in resp_none.data["results"]]
+        self.assertIn("AWB_NO_BAST", results)
+        self.assertNotIn("AWB_BR1_1", results)
+
+    def test_clear_all_waybills(self):
+        Waybill.objects.create(waybill_number="AWB_DEL_1", shipment_date="2026-08-01")
+        Waybill.objects.create(waybill_number="AWB_DEL_2", shipment_date="2026-08-02")
+        self.assertEqual(Waybill.objects.count(), 2)
+
+        response = self.client.post("/api/waybills/clear-all/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["deleted"], 2)
+        self.assertEqual(Waybill.objects.count(), 0)
+
+
+
 
 

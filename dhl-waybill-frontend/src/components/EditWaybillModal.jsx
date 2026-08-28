@@ -32,6 +32,7 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
         collected_by: waybill.collected_by || "",
         delivered: Boolean(waybill.delivered),
         receiver: waybill.receiver || "",
+        billing_account_sales_territory: waybill.billing_account_sales_territory || "",
         euro_amount:
           waybill.euro_amount !== null && waybill.euro_amount !== undefined
             ? waybill.euro_amount
@@ -236,6 +237,16 @@ function EditWaybillModal({ waybill, onClose, onSaved }) {
               />
               <span>{formData.delivered ? "Evet (Teslim Edildi)" : "Hayır (Teslim Edilmedi)"}</span>
             </div>
+          </label>
+
+          <label>
+            Sales Territory (BAST)
+            <input
+              type="text"
+              placeholder="Örn: BR1, IP1..."
+              value={formData.billing_account_sales_territory}
+              onChange={(e) => handleChange("billing_account_sales_territory", e.target.value)}
+            />
           </label>
 
           <label>

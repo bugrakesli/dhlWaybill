@@ -29,6 +29,7 @@ class WaybillSerializer(serializers.ModelSerializer):
             "collected_by",
             "delivered",
             "receiver",
+            "billing_account_sales_territory",
             "euro_amount",
             "exchange_rate",
             "payment_amount",

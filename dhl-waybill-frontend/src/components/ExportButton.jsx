@@ -25,6 +25,7 @@ function ExportButton({ activeFilters }) {
             activeFilters.delivered && activeFilters.delivered !== "all"
               ? activeFilters.delivered
               : undefined,
+          territory: activeFilters?.territory || undefined,
           incomplete: isModeOnlyIncomplete ? "true" : undefined,
         },
         responseType: "blob",
